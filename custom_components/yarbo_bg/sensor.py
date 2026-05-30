@@ -25,9 +25,10 @@ from .map_sensor import YarboMapSensor
 MEASUREMENT_CLASSES = {"battery", "temperature", "humidity", "distance", "pressure"}
 
 # on_going_planning status code → display text
+# Status 1 ("actively working") is overridden at runtime based on head type.
 PLANNING_STATUS_MAP: dict[int, str] = {
     0: "Not Started",
-    1: "Cleaning",
+    1: "Working",  # overridden by _PLANNING_ACTIVE_VERB at runtime
     2: "Calculating Route",
     3: "Heading to Area",
     5: "Completed",
@@ -70,6 +71,16 @@ RECHARGING_STATUS_MAP: dict[int, str] = {
     -8: "Error: Docking Connection Failed",
     -9: "Error: Stuck",
     -20: "Error: Outside Mapped Area",
+}
+
+# Head type → active-work verb (used when on_going_planning == 1)
+_PLANNING_ACTIVE_VERB: dict[int, str] = {
+    0: "Running",  # No head
+    1: "Blowing Snow",  # Snow Blower
+    2: "Blowing",  # Blower
+    3: "Mowing",  # Mower
+    4: "Working",  # Smart Cover
+    5: "Mowing",  # Mower Pro
 }
 
 
@@ -210,6 +221,13 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
             if raw is None:
                 return None
             code = int(raw)
+            if code == 1:
+                # "Actively working" — use head-type-specific verb
+                head_type = extract_field(data, "HeadMsg.head_type")
+                try:
+                    return _PLANNING_ACTIVE_VERB.get(int(head_type), "Working")
+                except (TypeError, ValueError):
+                    return "Working"
             if code in PLANNING_STATUS_MAP:
                 return PLANNING_STATUS_MAP[code]
             return "Error" if code < 0 else None
