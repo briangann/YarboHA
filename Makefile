@@ -2,7 +2,7 @@ PYTHON     ?= .venv/bin/python
 HA_BRANCH  ?= 2026.5.4
 HA_CLONE    = /tmp/ha-core
 
-.PHONY: help setup lint test import-check check
+.PHONY: help setup lint test coverage bandit import-check check
 .DEFAULT_GOAL := help
 
 help:
@@ -10,8 +10,10 @@ help:
 	@echo "  setup         create .venv, install HA core + dev deps (run once)"
 	@echo "  lint          run pyright type check"
 	@echo "  test          run pytest unit tests"
+	@echo "  coverage      run pytest with coverage report"
+	@echo "  bandit        run bandit security scan"
 	@echo "  import-check  verify all Python files compile without syntax errors"
-	@echo "  check         lint + test + import-check"
+	@echo "  check         lint + test + coverage + bandit + import-check"
 
 setup:
 	python3 -m venv .venv
@@ -27,7 +29,13 @@ lint:
 test:
 	$(PYTHON) -m pytest tests/ -v
 
+coverage:
+	$(PYTHON) -m pytest tests/ --cov=custom_components/yarbo --cov-report=term-missing
+
+bandit:
+	$(PYTHON) -m bandit -c pyproject.toml -r custom_components/yarbo/
+
 import-check:
 	$(PYTHON) -m compileall custom_components/yarbo/ -q
 
-check: lint test import-check
+check: lint test coverage bandit import-check
