@@ -22,6 +22,7 @@ setup:
 	.venv/bin/pip install --no-deps $(HA_CLONE)
 	.venv/bin/pip install voluptuous
 	.venv/bin/pip install -r requirements_dev.txt
+	.venv/bin/pre-commit install
 
 lint:
 	.venv/bin/pyright custom_components/yarbo_bg/

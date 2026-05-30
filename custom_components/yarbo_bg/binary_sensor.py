@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from yarbo_robot_sdk import get_field_definitions
+from yarbo_robot_sdk.device_helpers import extract_field
+
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
@@ -22,7 +25,6 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Yarbo binary sensors dynamically from SDK field definitions."""
-    from yarbo_robot_sdk import get_field_definitions
 
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
@@ -197,7 +199,6 @@ class YarboConfigBinarySensor(
         data = self._get_device_data()
         if data is None:
             return None
-        from yarbo_robot_sdk.device_helpers import extract_field
 
         return extract_field(data, field_path)
 
