@@ -264,6 +264,15 @@ class _YarboFaultBinarySensorBase(
         data = (self.coordinator.data or {}).get(self._device.sn) or {}
         return data.get("RunningStatusMSG") or {}
 
+    @staticmethod
+    def _fault(val) -> bool | None:
+        """Return True/False for numeric fault flags; None if absent; False for non-numeric."""
+        if val is None:
+            return None
+        if not isinstance(val, (int, float)):
+            return False  # Unexpected type — treat as no fault
+        return val != 0
+
 
 class YarboImpactBinarySensor(_YarboFaultBinarySensorBase):
     """Bump / impact sensor — on when collision detected."""
@@ -279,7 +288,7 @@ class YarboImpactBinarySensor(_YarboFaultBinarySensorBase):
     @property
     def is_on(self) -> bool | None:
         val = self._running().get("impact_sensor")
-        return bool(val) if val is not None else None
+        return self._fault(val)
 
 
 class YarboLeftMotorFaultSensor(_YarboFaultBinarySensorBase):
@@ -295,7 +304,7 @@ class YarboLeftMotorFaultSensor(_YarboFaultBinarySensorBase):
     @property
     def is_on(self) -> bool | None:
         val = self._abnormal().get("left_motor_err")
-        return bool(val) if val is not None else None
+        return self._fault(val)
 
 
 class YarboRightMotorFaultSensor(_YarboFaultBinarySensorBase):
@@ -311,7 +320,7 @@ class YarboRightMotorFaultSensor(_YarboFaultBinarySensorBase):
     @property
     def is_on(self) -> bool | None:
         val = self._abnormal().get("right_motor_err")
-        return bool(val) if val is not None else None
+        return self._fault(val)
 
 
 class YarboLeftWheelFaultSensor(_YarboFaultBinarySensorBase):
@@ -327,7 +336,7 @@ class YarboLeftWheelFaultSensor(_YarboFaultBinarySensorBase):
     @property
     def is_on(self) -> bool | None:
         val = self._abnormal().get("left_wheel_fault_state")
-        return bool(val) if val is not None else None
+        return self._fault(val)
 
 
 class YarboRightWheelFaultSensor(_YarboFaultBinarySensorBase):
@@ -343,7 +352,7 @@ class YarboRightWheelFaultSensor(_YarboFaultBinarySensorBase):
     @property
     def is_on(self) -> bool | None:
         val = self._abnormal().get("right_wheel_fault_state")
-        return bool(val) if val is not None else None
+        return self._fault(val)
 
 
 class YarboRadarFaultSensor(_YarboFaultBinarySensorBase):
@@ -359,7 +368,7 @@ class YarboRadarFaultSensor(_YarboFaultBinarySensorBase):
     @property
     def is_on(self) -> bool | None:
         val = self._abnormal().get("radar_state")
-        return bool(val) if val is not None else None
+        return self._fault(val)
 
 
 class YarboPowerFaultSensor(_YarboFaultBinarySensorBase):
@@ -375,7 +384,9 @@ class YarboPowerFaultSensor(_YarboFaultBinarySensorBase):
     @property
     def is_on(self) -> bool | None:
         val = self._abnormal().get("power_fault")
-        # -1 appears to be "no fault / not applicable"; treat only >0 as fault
+        # -1 = "not applicable" / nominal; treat only >0 as fault
         if val is None:
             return None
+        if not isinstance(val, (int, float)):
+            return False
         return int(val) > 0

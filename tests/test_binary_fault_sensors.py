@@ -53,6 +53,11 @@ class TestYarboImpactBinarySensor:
         s = _make(YarboImpactBinarySensor)
         assert s.is_on is None
 
+    def test_string_value_treated_as_no_fault(self):
+        # Non-numeric values (e.g. corrupted payload) must not fire — bool("0") would be True
+        s = _make(YarboImpactBinarySensor, running_status={"impact_sensor": "0"})
+        assert s.is_on is False
+
 
 # ── Motor faults ──────────────────────────────────────────────────────────────
 

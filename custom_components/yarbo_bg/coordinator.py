@@ -390,6 +390,10 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             if new_status is not None:
                 prev = self._last_planning_status.get(sn)
                 if new_status == 5 and prev != 5:
+                    # Stamp immediately to prevent duplicate fetches from
+                    # concurrent MQTT callbacks arriving before the first
+                    # fetch completes.
+                    self._last_planning_status[sn] = 5
                     device = next((d for d in self.devices if d.sn == sn), None)
                     if device:
                         _LOGGER.info("Plan completed for %s — refreshing plan list", sn)
@@ -400,7 +404,8 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                             )
                         except RuntimeError:
                             pass  # Event loop closed during shutdown
-                self._last_planning_status[sn] = new_status
+                else:
+                    self._last_planning_status[sn] = new_status
 
     def _on_heart_beat(self, topic: str, data: dict[str, Any]) -> None:
         """Handle heart beat push — update timestamp and online state."""
@@ -413,8 +418,13 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             if sn not in self.data:
                 self.data[sn] = {}
             self.data[sn]["HeartBeatMSG"] = data
+            prev_online = self.data[sn].get("__online__", False)
             # Mark online immediately on heartbeat
             self.data[sn]["__online__"] = True
+            if not prev_online:
+                # Device just came back online — reset planning status so a
+                # plan completion at status=5 triggers a fresh plan list fetch.
+                self._last_planning_status.pop(sn, None)
             _LOGGER.debug("[heart_beat] sn=%s → online", sn)
             self._schedule_update()
 
