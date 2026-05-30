@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  COMPONENT: custom_components/yarbo_bg
+
 jobs:
   lint-and-test:
     runs-on: "ubuntu-latest"
@@ -31,19 +34,19 @@ jobs:
           pip install -r requirements_dev.txt
 
       - name: "Run ruff lint"
-        run: ruff check custom_components/yarbo_bg/
+        run: ruff check ${{ env.COMPONENT }}/
 
       - name: "Run ruff format check"
-        run: ruff format --check custom_components/yarbo_bg/
+        run: ruff format --check ${{ env.COMPONENT }}/
 
       - name: "Run pyright"
-        run: pyright custom_components/yarbo_bg/
+        run: pyright ${{ env.COMPONENT }}/
 
       - name: "Run tests with coverage"
-        run: pytest --cov=custom_components/yarbo_bg --cov-report=term-missing
+        run: pytest --cov=${{ env.COMPONENT }} --cov-report=term-missing
 
       - name: "Run bandit security scan"
-        run: bandit -c pyproject.toml -r custom_components/yarbo_bg/
+        run: bandit -c pyproject.toml -r ${{ env.COMPONENT }}/
 
       - name: "Compile check"
-        run: python -m compileall custom_components/yarbo_bg/ -q
+        run: python -m compileall ${{ env.COMPONENT }}/ -q
