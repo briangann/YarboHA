@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.4.6] - 2026-05-30
+
+### Added
+- `sensor.*_current_plan` — name of the currently running plan (e.g. "South Front"), matched from `plan_feedback.areaIds` against the plan list
+- `sensor.*_clean_area` — area covered in the current run (m²)
+- `sensor.*_battery_consumption` — battery % used in the current run
+
+### Fixed
+- `Plan Select` state now reflects the active plan name while a plan is running instead of showing `unknown`
+
+---
+
 ## [0.4.5] - 2026-05-30
 
 ### Fixed
