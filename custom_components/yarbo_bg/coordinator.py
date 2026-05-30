@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
+import os
 import time
+import zlib
 from datetime import timedelta
 from typing import Any
 
@@ -13,6 +17,15 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
+from yarbo_robot_sdk import (
+    AuthenticationError,
+    TokenExpiredError,
+    YarboClient,
+    YarboSDKError,
+)
+from yarbo_robot_sdk.codec import decode_mqtt_payload, encode_mqtt_payload, should_compress
+from yarbo_robot_sdk.device_helpers import convert_map_to_geojson
 
 from .const import (
     CONF_SELECTED_DEVICES,
@@ -56,30 +69,27 @@ def _decode_map_data(raw, sn: str):
     if isinstance(raw, dict):
         return raw
     if isinstance(raw, str):
-        import json as _json
-        import zlib as _zlib
 
         # 1) plain JSON string?
         try:
-            parsed = _json.loads(raw)
+            parsed = json.loads(raw)
             if isinstance(parsed, dict):
                 return parsed
         except Exception:
             pass
         # 2) zlib-compressed binary, bytes-as-str (latin-1)?
         try:
-            decompressed = _zlib.decompress(raw.encode("latin-1"))
-            parsed = _json.loads(decompressed.decode("utf-8"))
+            decompressed = zlib.decompress(raw.encode("latin-1"))
+            parsed = json.loads(decompressed.decode("utf-8"))
             if isinstance(parsed, dict):
                 return parsed
         except Exception:
             pass
         # 3) base64-wrapped zlib?
         try:
-            import base64 as _b64
 
-            decompressed = _zlib.decompress(_b64.b64decode(raw))
-            parsed = _json.loads(decompressed.decode("utf-8"))
+            decompressed = zlib.decompress(base64.b64decode(raw))
+            parsed = json.loads(decompressed.decode("utf-8"))
             if isinstance(parsed, dict):
                 return parsed
         except Exception:
@@ -136,14 +146,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
 
     async def async_setup(self) -> None:
         """Initialize SDK client, restore session, connect MQTT, subscribe."""
-        from yarbo_robot_sdk import (
-            AuthenticationError,
-            TokenExpiredError,
-            YarboClient,
-            YarboSDKError,
-        )
-
-        import os
 
         api_url = os.environ.get("YARBO_API_BASE_URL")
 
@@ -263,7 +265,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 plan_topic = f"snowbot/{device.sn}/device/plan_feedback"
 
                 def _on_plan_feedback(topic_str, payload, _sn=device.sn):
-                    from yarbo_robot_sdk.codec import decode_mqtt_payload
 
                     try:
                         data = decode_mqtt_payload(payload)
@@ -298,7 +299,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 cloud_topic = f"snowbot/{device.sn}/device/cloud_points_feedback"
 
                 def _on_cloud_points(topic_str, payload, _sn=device.sn):
-                    from yarbo_robot_sdk.codec import decode_mqtt_payload
 
                     try:
                         data = decode_mqtt_payload(payload)
@@ -612,7 +612,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 self._client.get_map, sn, type_id
             )
             raw_data = _decode_map_data(result.get("data", {}), sn)
-            from yarbo_robot_sdk.device_helpers import convert_map_to_geojson
 
             fallback_ref = self._gps_refs.get(sn)
             geojson = convert_map_to_geojson(raw_data, fallback_ref)
@@ -660,15 +659,13 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             raise HomeAssistantError(f"No-go zone {zone_id} not found in cached map")
         payload = dict(zone)
         payload["enable"] = bool(enabled)
-        from yarbo_robot_sdk.codec import encode_mqtt_payload, should_compress
-        import json as _json
 
         topic = f"snowbot/{sn}/app/save_nogozone"
         fw = getattr(self._client, "_firmware_versions", {}).get(sn)
         if should_compress(fw):
             encoded = encode_mqtt_payload(payload)
         else:
-            encoded = _json.dumps(payload, separators=(",", ":")).encode("utf-8")
+            encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         mqtt = getattr(self._client, "_mqtt", None)
         if mqtt is None:
             raise HomeAssistantError("MQTT broker not connected")
@@ -688,8 +685,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         if self._client is None:
             return
         try:
-            from yarbo_robot_sdk.codec import encode_mqtt_payload, should_compress
-            import json as _json
 
             topic = f"snowbot/{sn}/app/get_plan_feedback"
             fw = getattr(self._client, "_firmware_versions", {}).get(sn)
@@ -697,7 +692,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             if should_compress(fw):
                 encoded = encode_mqtt_payload(payload)
             else:
-                encoded = _json.dumps(payload, separators=(",", ":")).encode("utf-8")
+                encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
             mqtt = getattr(self._client, "_mqtt", None)
             if mqtt is None:
                 return
