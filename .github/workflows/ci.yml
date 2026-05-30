@@ -26,7 +26,7 @@ jobs:
       - name: "Install dependencies"
         run: |
           pip install --no-deps /tmp/ha-core
-          pip install "yarbo-data-sdk>=0.2.0" pyright==1.1.409 pytest pytest-asyncio ruff
+          pip install -r requirements_dev.txt
 
       - name: "Run ruff lint"
         run: ruff check custom_components/yarbo/
