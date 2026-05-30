@@ -151,6 +151,19 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         """Return the SDK client, or None if not yet initialised."""
         return self._client
 
+    def _schedule_update(self) -> None:
+        """Schedule a coordinator data update from a non-async (MQTT) thread.
+
+        No-op when data is not yet populated or when the event loop is already
+        closed (i.e. HA is shutting down and the MQTT thread is still running).
+        """
+        if self.data is None:
+            return
+        try:
+            self.hass.loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
+        except RuntimeError:
+            pass  # Event loop closed during HA shutdown — safe to ignore
+
     async def async_setup(self) -> None:
         """Initialize SDK client, restore session, connect MQTT, subscribe."""
 
@@ -243,20 +256,12 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                                 if z.get("id") == zid or str(z.get("id")) == str(zid):
                                     z["enable"] = bool(payload.get("enable", True))
                                     break
-                            if self.data is not None:
-                                self.hass.loop.call_soon_threadsafe(
-                                    self.async_set_updated_data,
-                                    self.data,
-                                )
+                            self._schedule_update()
                         elif rtopic == "get_plan_feedback":
                             pf = data.get("data")
                             if isinstance(pf, dict):
                                 self._plan_feedback[_sn] = pf
-                                if self.data is not None:
-                                    self.hass.loop.call_soon_threadsafe(
-                                        self.async_set_updated_data,
-                                        self.data,
-                                    )
+                                self._schedule_update()
                     except Exception as err:
                         _LOGGER.warning(
                             "data_feedback dispatcher failed: %s",
@@ -284,11 +289,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     if not isinstance(data, dict):
                         return
                     self._plan_feedback[_sn] = data
-                    if self.data is not None:
-                        self.hass.loop.call_soon_threadsafe(
-                            self.async_set_updated_data,
-                            self.data,
-                        )
+                    self._schedule_update()
 
                 try:
                     await self.hass.async_add_executor_job(
@@ -317,11 +318,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     if not isinstance(data, dict):
                         return
                     self._cloud_points[_sn] = data
-                    if self.data is not None:
-                        self.hass.loop.call_soon_threadsafe(
-                            self.async_set_updated_data,
-                            self.data,
-                        )
+                    self._schedule_update()
 
                 try:
                     await self.hass.async_add_executor_job(
@@ -383,7 +380,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             if sn not in self.data:
                 self.data[sn] = {}
             _deep_merge(self.data[sn], data)
-            self.hass.loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
+            self._schedule_update()
 
     def _on_heart_beat(self, topic: str, data: dict[str, Any]) -> None:
         """Handle heart beat push — update timestamp and online state."""
@@ -399,7 +396,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             # Mark online immediately on heartbeat
             self.data[sn]["__online__"] = True
             _LOGGER.debug("[heart_beat] sn=%s → online", sn)
-            self.hass.loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
+            self._schedule_update()
 
     # ---- Heartbeat online detection ----
 
