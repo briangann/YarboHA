@@ -148,6 +148,10 @@ class YarboConfigBinarySensor(
         path_key = field_def.path.replace(".", "_").replace("__", "").lower()
         self._attr_unique_id = f"{device.sn}_{path_key}"
         self._attr_name = field_def.name
+        # "Charging" is misleading alongside "Recharging Status" which also
+        # uses "Charging" as a state value. Override to clarify meaning.
+        if field_def.custom_extractor == "charging_threshold":
+            self._attr_name = "Active Charge"
         self._attr_entity_registry_enabled_default = field_def.enabled_by_default
 
         if field_def.device_class:
