@@ -272,7 +272,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 plan_topic = f"snowbot/{device.sn}/device/plan_feedback"
 
                 def _on_plan_feedback(topic_str, payload, _sn=device.sn):
-
                     try:
                         data = decode_mqtt_payload(payload)
                     except Exception as err:
@@ -306,7 +305,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 cloud_topic = f"snowbot/{device.sn}/device/cloud_points_feedback"
 
                 def _on_cloud_points(topic_str, payload, _sn=device.sn):
-
                     try:
                         data = decode_mqtt_payload(payload)
                     except Exception as err:
@@ -667,7 +665,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         payload["enable"] = bool(enabled)
 
         topic = f"snowbot/{sn}/app/save_nogozone"
-        fw = getattr(self._client, "_firmware_versions", {}).get(sn) or ""
+        fw = getattr(self._client, "_firmware_versions", {}).get(sn)
         if should_compress(fw):
             encoded = encode_mqtt_payload(payload)
         else:
@@ -692,7 +690,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             return
         try:
             topic = f"snowbot/{sn}/app/get_plan_feedback"
-            fw = getattr(self._client, "_firmware_versions", {}).get(sn) or ""
+            fw = getattr(self._client, "_firmware_versions", {}).get(sn)
             payload: dict = {}
             if should_compress(fw):
                 encoded = encode_mqtt_payload(payload)
