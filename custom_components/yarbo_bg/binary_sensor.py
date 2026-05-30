@@ -30,7 +30,7 @@ async def async_setup_entry(
 
     entities: list[BinarySensorEntity] = []
     for device in coordinator.devices:
-        # Hardcoded Online binary sensor (heartbeat-driven)
+        # Heartbeat-driven online sensor
         entities.append(YarboOnlineBinarySensor(coordinator, device))
 
         # Config-driven binary sensors from JSON field definitions
@@ -40,6 +40,15 @@ async def async_setup_entry(
         for field_def in field_defs:
             if field_def.entity_type == "binary_sensor":
                 entities.append(YarboConfigBinarySensor(coordinator, device, field_def))
+
+        # Raw telemetry binary sensors from abnormal_msg / RunningStatusMSG
+        entities.append(YarboImpactBinarySensor(coordinator, device))
+        entities.append(YarboLeftMotorFaultSensor(coordinator, device))
+        entities.append(YarboRightMotorFaultSensor(coordinator, device))
+        entities.append(YarboLeftWheelFaultSensor(coordinator, device))
+        entities.append(YarboRightWheelFaultSensor(coordinator, device))
+        entities.append(YarboRadarFaultSensor(coordinator, device))
+        entities.append(YarboPowerFaultSensor(coordinator, device))
 
     async_add_entities(entities)
 
@@ -219,3 +228,154 @@ class YarboConfigBinarySensor(
         if self.coordinator.data and self._device.sn in self.coordinator.data:
             return self.coordinator.data[self._device.sn]
         return None
+
+
+# ---------------------------------------------------------------------------
+# Raw telemetry binary sensors
+# ---------------------------------------------------------------------------
+class _YarboFaultBinarySensorBase(
+    CoordinatorEntity[YarboDataUpdateCoordinator], BinarySensorEntity
+):
+    """Base for binary sensors reading fault/status flags from coordinator data."""
+
+    _attr_has_entity_name = True
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.sn)},
+            name=self._device.name,
+            manufacturer="Yarbo",
+            model=self._device.model,
+            serial_number=self._device.sn,
+        )
+
+    def _abnormal(self) -> dict:
+        data = (self.coordinator.data or {}).get(self._device.sn) or {}
+        return data.get("abnormal_msg") or {}
+
+    def _running(self) -> dict:
+        data = (self.coordinator.data or {}).get(self._device.sn) or {}
+        return data.get("RunningStatusMSG") or {}
+
+
+class YarboImpactBinarySensor(_YarboFaultBinarySensorBase):
+    """Bump / impact sensor — on when collision detected."""
+
+    _attr_name = "Impact"
+    _attr_device_class = BinarySensorDeviceClass.VIBRATION
+    _attr_icon = "mdi:car-emergency"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_impact"
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._running().get("impact_sensor")
+        return bool(val) if val is not None else None
+
+
+class YarboLeftMotorFaultSensor(_YarboFaultBinarySensorBase):
+    """Left motor fault."""
+
+    _attr_name = "Left Motor Fault"
+    _attr_icon = "mdi:engine-off"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_left_motor_fault"
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._abnormal().get("left_motor_err")
+        return bool(val) if val is not None else None
+
+
+class YarboRightMotorFaultSensor(_YarboFaultBinarySensorBase):
+    """Right motor fault."""
+
+    _attr_name = "Right Motor Fault"
+    _attr_icon = "mdi:engine-off"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_right_motor_fault"
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._abnormal().get("right_motor_err")
+        return bool(val) if val is not None else None
+
+
+class YarboLeftWheelFaultSensor(_YarboFaultBinarySensorBase):
+    """Left wheel fault."""
+
+    _attr_name = "Left Wheel Fault"
+    _attr_icon = "mdi:tire"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_left_wheel_fault"
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._abnormal().get("left_wheel_fault_state")
+        return bool(val) if val is not None else None
+
+
+class YarboRightWheelFaultSensor(_YarboFaultBinarySensorBase):
+    """Right wheel fault."""
+
+    _attr_name = "Right Wheel Fault"
+    _attr_icon = "mdi:tire"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_right_wheel_fault"
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._abnormal().get("right_wheel_fault_state")
+        return bool(val) if val is not None else None
+
+
+class YarboRadarFaultSensor(_YarboFaultBinarySensorBase):
+    """Radar / obstacle detection fault."""
+
+    _attr_name = "Radar Fault"
+    _attr_icon = "mdi:radar"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_radar_fault"
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._abnormal().get("radar_state")
+        return bool(val) if val is not None else None
+
+
+class YarboPowerFaultSensor(_YarboFaultBinarySensorBase):
+    """Power fault indicator."""
+
+    _attr_name = "Power Fault"
+    _attr_icon = "mdi:lightning-bolt"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_power_fault"
+
+    @property
+    def is_on(self) -> bool | None:
+        val = self._abnormal().get("power_fault")
+        # -1 appears to be "no fault / not applicable"; treat only >0 as fault
+        if val is None:
+            return None
+        return int(val) > 0

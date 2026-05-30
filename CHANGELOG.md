@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.4.8] - 2026-05-30
+
+### Added
+**Sensors (raw telemetry):**
+- `sensor.*_speed` — average forward speed (m/s)
+- `sensor.*_odometry_left` / `*_odometry_right` — wheel odometry distance (m, `TOTAL_INCREASING`)
+- `sensor.*_positioning_confidence` — fused odometry confidence (0–1)
+- `sensor.*_rain_sensor` — rain sensor raw reading
+- `sensor.*_chute_angle` — snow chute angle (°), **Snow Blower head only** (unavailable with other heads)
+- `sensor.*_proximity_left` / `*_proximity_center` / `*_proximity_right` — ultrasonic distances (mm; 9999 = no obstacle)
+- `sensor.*_head_gyro_pitch` / `*_head_gyro_roll` — head gyro angles (°), disabled by default
+
+**Binary sensors (fault/status from `abnormal_msg`):**
+- `binary_sensor.*_impact` — bump/collision detected (`vibration` device class)
+- `binary_sensor.*_left_motor_fault` / `*_right_motor_fault` — motor faults (`problem` device class)
+- `binary_sensor.*_left_wheel_fault` / `*_right_wheel_fault` — wheel faults
+- `binary_sensor.*_radar_fault` — radar/obstacle detection fault
+- `binary_sensor.*_power_fault` — power fault (fires when `power_fault > 0`)
+
+### Changed
+- Head-type gating: sensors unavailable when the wrong attachment is fitted (e.g. chute angle only for Snow Blower)
+
+---
+
 ## [0.4.7] - 2026-05-30
 
 ### Added
