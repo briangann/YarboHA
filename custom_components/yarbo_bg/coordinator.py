@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -145,6 +146,8 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self._cloud_points: dict[str, dict] = {}
         self._unsub_heartbeat_check: CALLBACK_TYPE | None = None
         self._unsub_wakeup_renewal: CALLBACK_TYPE | None = None
+        # Track last planning status per device to detect plan completion.
+        self._last_planning_status: dict[str, int | None] = {}
 
     @property
     def client(self):
@@ -381,6 +384,23 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 self.data[sn] = {}
             _deep_merge(self.data[sn], data)
             self._schedule_update()
+            # Detect plan completion (on_going_planning == 5) and refresh
+            # the plan list so Current Plan resolves after the next run.
+            new_status = (data.get("StateMSG") or {}).get("on_going_planning")
+            if new_status is not None:
+                prev = self._last_planning_status.get(sn)
+                if new_status == 5 and prev != 5:
+                    device = next((d for d in self.devices if d.sn == sn), None)
+                    if device:
+                        _LOGGER.info("Plan completed for %s — refreshing plan list", sn)
+                        try:
+                            asyncio.run_coroutine_threadsafe(
+                                self._async_fetch_plans(sn, device.type_id),
+                                self.hass.loop,
+                            )
+                        except RuntimeError:
+                            pass  # Event loop closed during shutdown
+                self._last_planning_status[sn] = new_status
 
     def _on_heart_beat(self, topic: str, data: dict[str, Any]) -> None:
         """Handle heart beat push — update timestamp and online state."""
