@@ -114,7 +114,7 @@ class YarboConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "no_devices_selected"
             else:
                 return self.async_create_entry(
-                    title=self._email,
+                    title=self._email or "",
                     data={
                         CONF_EMAIL: self._email,
                         CONF_PASSWORD: self._password,
@@ -147,7 +147,7 @@ class YarboConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
         """Handle reauth when refresh token expires."""
         self._reauth_entry = self.hass.config_entries.async_get_entry(
-            self.context["entry_id"]
+            self.context.get("entry_id", "")
         )
         return await self.async_step_reauth_confirm()
 

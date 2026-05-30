@@ -122,6 +122,8 @@ class YarboConfigSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEnt
         if self._ctrl_def.extra_payload:
             payload.update(self._ctrl_def.extra_payload)
 
+        if self.coordinator._client is None:
+            return
         try:
             await self.hass.async_add_executor_job(
                 self.coordinator._client.mqtt_publish_command,

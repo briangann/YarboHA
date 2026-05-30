@@ -1,6 +1,9 @@
 -r requirements.txt
 pytest
+pytest-cov
 pytest-asyncio
 pyright==1.1.409
 ruff
+bandit[toml]
 pre-commit
+voluptuous

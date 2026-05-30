@@ -111,6 +111,8 @@ class YarboConfigSwitch(CoordinatorEntity[YarboDataUpdateCoordinator], SwitchEnt
 
     async def _async_send_command(self, turn_on: bool) -> None:
         """Build and send the MQTT command payload."""
+        if self.coordinator._client is None:
+            return
         self._command_sent_at = time.monotonic()
         payload = self._build_payload(turn_on)
         try:

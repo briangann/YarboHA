@@ -8,17 +8,18 @@ Home Assistant custom integration (HACS) for Yarbo Y Series robot devices. Pytho
 
 ## Development setup
 
+Run once after cloning:
+
+```bash
+make setup
+```
+
+This creates a project-local `.venv`, shallow-clones HA core at the pinned branch, and installs all dev dependencies. `pyrightconfig.json` points to `.venv` so pyright resolves HA types exactly as CI does.
+
 ### Type checking
 
 ```bash
-pyright custom_components/yarbo/
-```
-
-`pyrightconfig.json` points to `.venv` in the project root. Use the shared venv at `/Users/bgann/.venv` (Python 3.14) or create one:
-
-```bash
-uv venv --python 3.14
-uv pip install pytest pytest-asyncio
+make lint
 ```
 
 ### Tests
@@ -26,7 +27,13 @@ uv pip install pytest pytest-asyncio
 Unit tests run without a live HA instance — HA modules are mocked in `tests/conftest.py`:
 
 ```bash
-/Users/bgann/.venv/bin/python -m pytest tests/ -v
+make test
+```
+
+### Both
+
+```bash
+make check
 ```
 
 ### HA integration testing
