@@ -277,7 +277,7 @@ class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], Sensor
     """Sensor showing the actual cleaned area in the current run."""
 
     _attr_has_entity_name = True
-    _attr_name = "Clean Area"
+    _attr_name = "Completed Plan Area"
     _attr_icon = "mdi:texture-box"
     _attr_native_unit_of_measurement = "m²"
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -312,7 +312,7 @@ class YarboBatteryConsumptionSensor(
     """Sensor showing battery consumed during the current run."""
 
     _attr_has_entity_name = True
-    _attr_name = "Battery Consumption"
+    _attr_name = "Plan Battery Consumption"
     _attr_icon = "mdi:battery-minus"
     _attr_native_unit_of_measurement = "%"
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -391,7 +391,7 @@ class YarboPlanProgressSensor(_YarboPlanFeedbackBase):
 class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
     """Sensor showing remaining area to clean in current run."""
 
-    _attr_name = "Remaining Area"
+    _attr_name = "Remaining Plan Area"
     _attr_icon = "mdi:texture-box"
     _attr_native_unit_of_measurement = "m²"
     _attr_state_class = SensorStateClass.MEASUREMENT
@@ -435,7 +435,7 @@ class YarboTimeRemainingSensor(_YarboPlanFeedbackBase):
 class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
     """Sensor showing elapsed time in current plan run."""
 
-    _attr_name = "Elapsed Time"
+    _attr_name = "Plan Elapsed Time"
     _attr_icon = "mdi:timer"
     _attr_device_class = SensorDeviceClass.DURATION
     _attr_native_unit_of_measurement = UnitOfTime.SECONDS

@@ -136,23 +136,23 @@ paths use dot notation into the raw device payload.
 | Source | `plan_feedback.areaIds` matched against plan list |
 | Notes | Name of the plan currently running (e.g. "South Front"). `None` when no plan is active. Updated via `plan_feedback` MQTT push. |
 
-### Clean Area *(new in 0.4.6)*
+### Completed Plan Area *(renamed in 0.4.10, was "Clean Area" in 0.4.6)*
 | Property | Value |
 |---|---|
 | Entity ID pattern | `sensor.<sn>_clean_area` |
 | Source | `plan_feedback.actualCleanArea` |
 | Unit | `m²` |
 | State class | `measurement` |
-| Notes | Area covered in the current run. Resets to 0 at plan start. |
+| Notes | Area covered in the current plan run. Resets to 0 at plan start. |
 
-### Battery Consumption *(new in 0.4.6)*
+### Plan Battery Consumption *(renamed in 0.4.10, was "Battery Consumption" in 0.4.6)*
 | Property | Value |
 |---|---|
 | Entity ID pattern | `sensor.<sn>_battery_consumption` |
 | Source | `plan_feedback.battery_consumption` |
 | Unit | `%` |
 | State class | `measurement` |
-| Notes | Battery percentage consumed during the current run. |
+| Notes | Battery percentage consumed during the current plan run. |
 
 ### Plan Progress *(new in 0.4.7)*
 | Property | Value |
@@ -163,14 +163,14 @@ paths use dot notation into the raw device payload.
 | State class | `measurement` |
 | Notes | Plan completion 0–100%. `None` when no plan is active. |
 
-### Remaining Area *(new in 0.4.7)*
+### Remaining Plan Area *(renamed in 0.4.10, was "Remaining Area" in 0.4.7)*
 | Property | Value |
 |---|---|
 | Entity ID pattern | `sensor.<sn>_remaining_area` |
 | Source | `totalCleanArea - actualCleanArea` (computed) |
 | Unit | `m²` |
 | State class | `measurement` |
-| Notes | Area left to clean. `None` when no plan is active. |
+| Notes | Area remaining in the current plan. `None` when no plan is active. |
 
 ### Estimated Time Remaining *(new in 0.4.7)*
 | Property | Value |
@@ -182,7 +182,7 @@ paths use dot notation into the raw device payload.
 | State class | `measurement` |
 | Notes | Device-estimated seconds until plan completion. |
 
-### Elapsed Time *(new in 0.4.7)*
+### Plan Elapsed Time *(renamed in 0.4.10, was "Elapsed Time" in 0.4.7)*
 | Property | Value |
 |---|---|
 | Entity ID pattern | `sensor.<sn>_elapsed_time` |
@@ -190,7 +190,7 @@ paths use dot notation into the raw device payload.
 | Unit | `s` |
 | Device class | `duration` |
 | State class | `measurement` |
-| Notes | Seconds since the current plan started. |
+| Notes | Seconds elapsed since the current plan started. |
 
 ### Total Plan Area *(new in 0.4.7)*
 | Property | Value |
