@@ -533,7 +533,11 @@ class _YarboRawSensorBase(CoordinatorEntity[YarboDataUpdateCoordinator], SensorE
             data = (self.coordinator.data or {}).get(self._device.sn) or {}
             head_type = extract_field(data, "HeadMsg.head_type")
             if head_type is not None:
-                return int(head_type) in self._head_type_required
+                # Default to available when head_type not yet received (device may be a snow blower).
+                try:
+                    return int(head_type) in self._head_type_required
+                except (ValueError, TypeError):
+                    return False
         return True
 
     def _data(self) -> dict:
@@ -568,7 +572,7 @@ class YarboOdometryLeftSensor(_YarboRawSensorBase):
     _attr_name = "Odometry Left"
     _attr_icon = "mdi:counter"
     _attr_native_unit_of_measurement = "m"
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
@@ -586,7 +590,7 @@ class YarboOdometryRightSensor(_YarboRawSensorBase):
     _attr_name = "Odometry Right"
     _attr_icon = "mdi:counter"
     _attr_native_unit_of_measurement = "m"
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
