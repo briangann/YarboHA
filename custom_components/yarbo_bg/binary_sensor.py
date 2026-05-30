@@ -194,6 +194,15 @@ class YarboConfigBinarySensor(
             return mapped.lower() in ("true", "1", "on", "yes")
         return bool(raw)
 
+    @property
+    def extra_state_attributes(self) -> dict:
+        """Expose raw value for diagnostic extractors."""
+        if self._field_def.custom_extractor == "charging_threshold":
+            raw = self._extract(self._field_def.path)
+            if raw is not None:
+                return {"battery_status_raw": raw}
+        return {}
+
     def _extract(self, field_path: str):
         """Extract a field value from coordinator data."""
         data = self._get_device_data()
