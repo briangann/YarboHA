@@ -96,9 +96,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class YarboConfigSensor(
-    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
-):
+class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
     """Configuration-driven sensor — one class for all sensor fields."""
 
     _attr_has_entity_name = True
@@ -125,10 +123,7 @@ class YarboConfigSensor(
                 pass
 
         # State class for numeric measurements
-        if (
-            field_def.device_class in MEASUREMENT_CLASSES
-            and not field_def.value_map
-        ):
+        if field_def.device_class in MEASUREMENT_CLASSES and not field_def.value_map:
             self._attr_state_class = SensorStateClass.MEASUREMENT
 
         # Unit and icon
@@ -171,17 +166,23 @@ class YarboConfigSensor(
         if data is None:
             return None
         if self._field_def.custom_extractor == "network_priority":
-            from yarbo_robot_sdk.device_helpers import extract_active_network, extract_field
+            from yarbo_robot_sdk.device_helpers import (
+                extract_active_network,
+                extract_field,
+            )
+
             route_priority = extract_field(data, self._field_def.path)
             return extract_active_network(route_priority)
         if self._field_def.custom_extractor == "volume_scale":
             from yarbo_robot_sdk.device_helpers import extract_field
+
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
             return int(float(raw) * 100)
         if self._field_def.custom_extractor == "rtk_signal":
             from yarbo_robot_sdk.device_helpers import extract_field
+
             raw = extract_field(data, self._field_def.path)
             # APP logic: 4=Strong, 5=Medium, everything else=Weak
             raw_int = int(raw) if raw is not None else None
@@ -192,6 +193,7 @@ class YarboConfigSensor(
             return "Weak"
         if self._field_def.custom_extractor == "planning_status":
             from yarbo_robot_sdk.device_helpers import extract_field
+
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
@@ -201,6 +203,7 @@ class YarboConfigSensor(
             return "Error" if code < 0 else None
         if self._field_def.custom_extractor == "recharging_status":
             from yarbo_robot_sdk.device_helpers import extract_field
+
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
@@ -216,6 +219,7 @@ class YarboConfigSensor(
         if data is None:
             return None
         from yarbo_robot_sdk.device_helpers import extract_field
+
         return extract_field(data, field_path)
 
     def _get_device_data(self) -> dict | None:

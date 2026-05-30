@@ -37,9 +37,7 @@ async def async_setup_entry(
         )
         for field_def in field_defs:
             if field_def.entity_type == "binary_sensor":
-                entities.append(
-                    YarboConfigBinarySensor(coordinator, device, field_def)
-                )
+                entities.append(YarboConfigBinarySensor(coordinator, device, field_def))
 
     async_add_entities(entities)
 
@@ -142,6 +140,7 @@ class YarboConfigBinarySensor(
         if data is None:
             return None
         from yarbo_robot_sdk.device_helpers import extract_field
+
         return extract_field(data, field_path)
 
     def _get_device_data(self) -> dict | None:

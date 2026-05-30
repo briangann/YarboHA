@@ -44,9 +44,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class YarboConfigSwitch(
-    CoordinatorEntity[YarboDataUpdateCoordinator], SwitchEntity
-):
+class YarboConfigSwitch(CoordinatorEntity[YarboDataUpdateCoordinator], SwitchEntity):
     """Configuration-driven switch entity for sound and light control."""
 
     _attr_has_entity_name = True
@@ -155,6 +153,7 @@ class YarboConfigSwitch(
         if device_data is None:
             return None
         from yarbo_robot_sdk.device_helpers import extract_field
+
         return extract_field(device_data, self._ctrl_def.path)
 
     def _get_sibling_value(self, field_path: str):
@@ -165,4 +164,5 @@ class YarboConfigSwitch(
         if device_data is None:
             return None
         from yarbo_robot_sdk.device_helpers import extract_field
+
         return extract_field(device_data, field_path)

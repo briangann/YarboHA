@@ -1,7 +1,15 @@
 """Constants for the Yarbo integration."""
 
 DOMAIN = "yarbo"
-PLATFORMS = ["sensor", "binary_sensor", "select", "device_tracker", "button", "switch", "number"]
+PLATFORMS = [
+    "sensor",
+    "binary_sensor",
+    "select",
+    "device_tracker",
+    "button",
+    "switch",
+    "number",
+]
 
 # Config flow
 CONF_EMAIL = "email"

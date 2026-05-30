@@ -164,9 +164,7 @@ class YarboRefreshPlansButton(
 # ---- Plan control buttons ----
 
 
-class YarboStartPlanButton(
-    CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity
-):
+class YarboStartPlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity):
     """Button to start a selected auto plan."""
 
     _attr_has_entity_name = True
@@ -198,38 +196,28 @@ class YarboStartPlanButton(
         # Check 3: Not wired charging (BodyMsg.rechargeState: 1=wired charging, 3=wired locked)
         recharge_state = (data.get("BodyMsg") or {}).get("rechargeState")
         if isinstance(recharge_state, (int, float)) and recharge_state in (1, 3):
-            raise HomeAssistantError(
-                "Cannot start plan: device is wired charging"
-            )
+            raise HomeAssistantError("Cannot start plan: device is wired charging")
 
         # Check 4: Not wireless charging (BatteryMSG.status > 1 means charging)
         battery_status = (data.get("BatteryMSG") or {}).get("status")
         if isinstance(battery_status, (int, float)) and battery_status > 1:
-            raise HomeAssistantError(
-                "Cannot start plan: device is charging"
-            )
+            raise HomeAssistantError("Cannot start plan: device is charging")
 
         # Check 5: RTK signal must not be weak (4=Strong, 5=Medium)
         rtk_status = (data.get("RTKMSG") or {}).get("status")
         rtk_val = int(rtk_status) if rtk_status is not None else 0
         if rtk_val not in (4, 5):
-            raise HomeAssistantError(
-                "Cannot start plan: RTK/GPS signal is weak"
-            )
+            raise HomeAssistantError("Cannot start plan: RTK/GPS signal is weak")
 
         # Check 6: No plan already running (on_going_planning > 0 and != 5 means active)
         planning = (data.get("StateMSG") or {}).get("on_going_planning", 0)
         if isinstance(planning, (int, float)) and planning > 0 and planning != 5:
-            raise HomeAssistantError(
-                "Cannot start plan: a plan is already running"
-            )
+            raise HomeAssistantError("Cannot start plan: a plan is already running")
 
         # Check 7: Not returning to charge (on_going_recharging > 0 and != 4)
         recharging = (data.get("StateMSG") or {}).get("on_going_recharging", 0)
         if isinstance(recharging, (int, float)) and recharging > 0 and recharging != 4:
-            raise HomeAssistantError(
-                "Cannot start plan: device is returning to charge"
-            )
+            raise HomeAssistantError("Cannot start plan: device is returning to charge")
 
         # All checks passed — build payload and send
         payload: dict = {"id": plan_id}
@@ -253,7 +241,9 @@ class YarboStartPlanButton(
 
     def _get_plan_percent(self) -> float | None:
         """Read plan start percent from the entity state registry."""
-        entity_id = f"number.{self._device.name.lower().replace(' ', '_')}_plan_start_percent"
+        entity_id = (
+            f"number.{self._device.name.lower().replace(' ', '_')}_plan_start_percent"
+        )
         state = self.hass.states.get(entity_id)
         if state and state.state not in (None, "unknown", "unavailable"):
             try:
@@ -263,9 +253,7 @@ class YarboStartPlanButton(
         return None
 
 
-class YarboPausePlanButton(
-    CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity
-):
+class YarboPausePlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity):
     """Button to pause the current plan."""
 
     _attr_has_entity_name = True
@@ -327,9 +315,7 @@ class YarboResumePlanButton(
             _LOGGER.error("Failed to resume plan: %s", exc)
 
 
-class YarboStopPlanButton(
-    CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity
-):
+class YarboStopPlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity):
     """Button to stop the current plan."""
 
     _attr_has_entity_name = True
@@ -362,9 +348,7 @@ class YarboStopPlanButton(
 # ---- Recharge button ----
 
 
-class YarboRechargeButton(
-    CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity
-):
+class YarboRechargeButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity):
     """Button to send the device back to the charging station."""
 
     _attr_has_entity_name = True
@@ -386,9 +370,7 @@ class YarboRechargeButton(
 
         # Check 1: Device must be online
         if not data.get("__online__"):
-            raise HomeAssistantError(
-                "Cannot return to charge: device is offline"
-            )
+            raise HomeAssistantError("Cannot return to charge: device is offline")
 
         # Check 2: Not currently charging (BatteryMSG.status > 1 means charging)
         battery_status = (data.get("BatteryMSG") or {}).get("status")
@@ -408,9 +390,7 @@ class YarboRechargeButton(
         rtk_status = (data.get("RTKMSG") or {}).get("status")
         rtk_val = int(rtk_status) if rtk_status is not None else 0
         if rtk_val not in (4, 5):
-            raise HomeAssistantError(
-                "Cannot return to charge: RTK/GPS signal is weak"
-            )
+            raise HomeAssistantError("Cannot return to charge: RTK/GPS signal is weak")
 
         _LOGGER.info("Starting recharge for %s", sn)
         try:

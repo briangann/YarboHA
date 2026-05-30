@@ -27,15 +27,12 @@ async def async_setup_entry(
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities = [
-        YarboDeviceTracker(coordinator, device)
-        for device in coordinator.devices
+        YarboDeviceTracker(coordinator, device) for device in coordinator.devices
     ]
     async_add_entities(entities)
 
 
-class YarboDeviceTracker(
-    CoordinatorEntity[YarboDataUpdateCoordinator], TrackerEntity
-):
+class YarboDeviceTracker(CoordinatorEntity[YarboDataUpdateCoordinator], TrackerEntity):
     """Device tracker entity that converts local odometry to GPS coordinates."""
 
     _attr_has_entity_name = True
@@ -93,6 +90,7 @@ class YarboDeviceTracker(
 
         device_data = (self.coordinator.data or {}).get(self._device.sn, {})
         from yarbo_robot_sdk.device_helpers import extract_field
+
         attrs["position_x"] = extract_field(device_data, "CombinedOdom.x")
         attrs["position_y"] = extract_field(device_data, "CombinedOdom.y")
         attrs["heading"] = extract_field(device_data, "CombinedOdom.phi")
@@ -130,6 +128,8 @@ class YarboDeviceTracker(
                 ref_lat, ref_lon, float(local_x), float(local_y)
             )
         except (ValueError, TypeError) as err:
-            _LOGGER.debug("Coordinate conversion failed for %s: %s", self._device.sn, err)
+            _LOGGER.debug(
+                "Coordinate conversion failed for %s: %s", self._device.sn, err
+            )
 
         self.async_write_ha_state()

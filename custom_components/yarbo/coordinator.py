@@ -23,6 +23,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+
 def _deep_merge(target: dict, source: dict) -> None:
     """Deep merge source into target, preserving existing nested dict values.
 
@@ -33,11 +34,7 @@ def _deep_merge(target: dict, source: dict) -> None:
     for key, value in source.items():
         if key in ("__online__", "HeartBeatMSG"):
             continue  # Never overwrite these from device status
-        if (
-            key in target
-            and isinstance(target[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in target and isinstance(target[key], dict) and isinstance(value, dict):
             target[key].update(value)
         else:
             target[key] = value
@@ -84,6 +81,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         )
 
         import os
+
         api_url = os.environ.get("YARBO_API_BASE_URL")
 
         def _create_client():
@@ -121,9 +119,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         except YarboSDKError as err:
             raise UpdateFailed(f"Failed to get devices: {err}") from err
 
-        selected_sns = set(
-            self.entry.options.get(CONF_SELECTED_DEVICES, [])
-        )
+        selected_sns = set(self.entry.options.get(CONF_SELECTED_DEVICES, []))
         if selected_sns:
             self.devices = [d for d in all_devices if d.sn in selected_sns]
         else:
@@ -135,7 +131,8 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             for device in self.devices:
                 _LOGGER.info(
                     "Subscribing MQTT for %s (type_id=%s)",
-                    device.sn, device.type_id,
+                    device.sn,
+                    device.type_id,
                 )
                 await self.hass.async_add_executor_job(
                     client.subscribe_device_message,
@@ -214,9 +211,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             if sn not in self.data:
                 self.data[sn] = {}
             _deep_merge(self.data[sn], data)
-            self.hass.loop.call_soon_threadsafe(
-                self.async_set_updated_data, self.data
-            )
+            self.hass.loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
 
     def _on_heart_beat(self, topic: str, data: dict[str, Any]) -> None:
         """Handle heart beat push — update timestamp and online state."""
@@ -232,9 +227,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             # Mark online immediately on heartbeat
             self.data[sn]["__online__"] = True
             _LOGGER.debug("[heart_beat] sn=%s → online", sn)
-            self.hass.loop.call_soon_threadsafe(
-                self.async_set_updated_data, self.data
-            )
+            self.hass.loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
 
     # ---- Heartbeat online detection ----
 
@@ -346,7 +339,9 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             _deep_merge(self.data[sn], msg_data)
             _LOGGER.info(
                 "Full DeviceMSG snapshot for %s loaded (%d top-level keys: %s)",
-                sn, len(msg_data), list(msg_data.keys()),
+                sn,
+                len(msg_data),
+                list(msg_data.keys()),
             )
             # Debug: check specific fields
             state_msg = msg_data.get("StateMSG", {})
@@ -358,8 +353,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             )
         except TimeoutError:
             _LOGGER.warning(
-                "DeviceMSG request timed out for %s. "
-                "Using real-time push data only.",
+                "DeviceMSG request timed out for %s. Using real-time push data only.",
                 sn,
             )
         except Exception as err:
@@ -394,13 +388,16 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     "GPS reference for %s has rtkFixType=%s (not fixed). "
                     "Device tracker will be unavailable until device is "
                     "initialized via the Yarbo app.",
-                    sn, rtk_fix,
+                    sn,
+                    rtk_fix,
                 )
             else:
                 ref = gps_data.get("ref", {})
                 _LOGGER.info(
                     "GPS reference for %s: lat=%s, lon=%s",
-                    sn, ref.get("latitude"), ref.get("longitude"),
+                    sn,
+                    ref.get("latitude"),
+                    ref.get("longitude"),
                 )
         except TimeoutError:
             _LOGGER.warning(
@@ -434,6 +431,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             )
             raw_data = result.get("data", {})
             from yarbo_robot_sdk.device_helpers import convert_map_to_geojson
+
             fallback_ref = self._gps_refs.get(sn)
             geojson = convert_map_to_geojson(raw_data, fallback_ref)
             self._map_data[sn] = geojson
@@ -441,8 +439,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             _LOGGER.info("Map data for %s: %d features loaded", sn, feature_count)
         except TimeoutError:
             _LOGGER.warning(
-                "Map data request timed out for %s. "
-                "Map zones will be unavailable.",
+                "Map data request timed out for %s. Map zones will be unavailable.",
                 sn,
             )
         except Exception as err:

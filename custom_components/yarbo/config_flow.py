@@ -144,9 +144,7 @@ class YarboConfigFlow(ConfigFlow, domain=DOMAIN):
             }
         )
 
-    async def async_step_reauth(
-        self, entry_data: dict[str, Any]
-    ) -> ConfigFlowResult:
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
         """Handle reauth when refresh token expires."""
         self._reauth_entry = self.hass.config_entries.async_get_entry(
             self.context["entry_id"]
@@ -179,9 +177,7 @@ class YarboConfigFlow(ConfigFlow, domain=DOMAIN):
                         DATA_REFRESH_TOKEN: refresh_token,
                     },
                 )
-                await self.hass.config_entries.async_reload(
-                    self._reauth_entry.entry_id
-                )
+                await self.hass.config_entries.async_reload(self._reauth_entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
 
         return self.async_show_form(
@@ -260,14 +256,10 @@ class YarboOptionsFlow(OptionsFlow):
             if not selected:
                 errors["base"] = "no_devices_selected"
             else:
-                return self.async_create_entry(
-                    data={CONF_SELECTED_DEVICES: selected}
-                )
+                return self.async_create_entry(data={CONF_SELECTED_DEVICES: selected})
 
         # Fetch fresh device list from API via coordinator's client
-        coordinator = self.hass.data.get(DOMAIN, {}).get(
-            self.config_entry.entry_id
-        )
+        coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
         if coordinator and coordinator._client:
             try:
                 devices = await self.hass.async_add_executor_job(
@@ -285,16 +277,12 @@ class YarboOptionsFlow(OptionsFlow):
             errors["base"] = "no_devices_found"
 
         # Build multi-select with current selection pre-checked
-        current_selected = self.config_entry.options.get(
-            CONF_SELECTED_DEVICES, []
-        )
+        current_selected = self.config_entry.options.get(CONF_SELECTED_DEVICES, [])
         # Filter out stale SNs no longer returned by API
         valid_sns = {d.sn for d in devices}
         current_selected = [sn for sn in current_selected if sn in valid_sns]
 
-        device_options = {
-            d.sn: f"{d.name} ({d.model}) - {d.sn}" for d in devices
-        }
+        device_options = {d.sn: f"{d.name} ({d.model}) - {d.sn}" for d in devices}
         schema = vol.Schema(
             {
                 vol.Optional(
