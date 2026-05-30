@@ -26,6 +26,7 @@ jobs:
       - name: "Install dependencies"
         run: |
           pip install --no-deps /tmp/ha-core
+          pip install voluptuous
           pip install -r requirements_dev.txt
 
       - name: "Run ruff lint"

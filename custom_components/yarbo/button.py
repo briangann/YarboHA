@@ -227,6 +227,8 @@ class YarboStartPlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], Button
         if percent is not None and percent > 0:
             payload["percent"] = int(percent)
 
+        if self.coordinator._client is None:
+            raise HomeAssistantError("Cannot start plan: coordinator not ready")
         _LOGGER.info("Starting plan %s for %s: %s", plan_id, sn, payload)
         try:
             await self.hass.async_add_executor_job(
@@ -270,6 +272,8 @@ class YarboPausePlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], Button
         return _device_info(self._device)
 
     async def async_press(self) -> None:
+        if self.coordinator._client is None:
+            return
         _LOGGER.info("Pausing plan for %s", self._device.sn)
         try:
             await self.hass.async_add_executor_job(
@@ -302,6 +306,8 @@ class YarboResumePlanButton(
         return _device_info(self._device)
 
     async def async_press(self) -> None:
+        if self.coordinator._client is None:
+            return
         _LOGGER.info("Resuming plan for %s", self._device.sn)
         try:
             await self.hass.async_add_executor_job(
@@ -332,6 +338,8 @@ class YarboStopPlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonE
         return _device_info(self._device)
 
     async def async_press(self) -> None:
+        if self.coordinator._client is None:
+            return
         _LOGGER.info("Stopping plan for %s", self._device.sn)
         try:
             await self.hass.async_add_executor_job(
@@ -392,6 +400,8 @@ class YarboRechargeButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonE
         if rtk_val not in (4, 5):
             raise HomeAssistantError("Cannot return to charge: RTK/GPS signal is weak")
 
+        if self.coordinator._client is None:
+            raise HomeAssistantError("Cannot return to charge: coordinator not ready")
         _LOGGER.info("Starting recharge for %s", sn)
         try:
             # Step 1: Disable wireless charging
