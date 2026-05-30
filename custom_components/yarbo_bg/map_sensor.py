@@ -110,7 +110,6 @@ class YarboMapSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
         ref_lon = ref.get("longitude") if ref else None
         if barriers and ref_lat is not None and ref_lon is not None:
             try:
-
                 features = []
                 for i, cluster in enumerate(barriers):
                     if not isinstance(cluster, list) or not cluster:

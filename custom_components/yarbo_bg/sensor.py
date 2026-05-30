@@ -168,17 +168,14 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         if data is None:
             return None
         if self._field_def.custom_extractor == "network_priority":
-
             route_priority = extract_field(data, self._field_def.path)
             return extract_active_network(route_priority)
         if self._field_def.custom_extractor == "volume_scale":
-
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
             return int(float(raw) * 100)
         if self._field_def.custom_extractor == "rtk_signal":
-
             raw = extract_field(data, self._field_def.path)
             # APP logic: 4=Strong, 5=Medium, everything else=Weak
             raw_int = int(raw) if raw is not None else None
@@ -188,7 +185,6 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
                 return "Medium"
             return "Weak"
         if self._field_def.custom_extractor == "planning_status":
-
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
@@ -197,7 +193,6 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
                 return PLANNING_STATUS_MAP[code]
             return "Error" if code < 0 else None
         if self._field_def.custom_extractor == "recharging_status":
-
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None

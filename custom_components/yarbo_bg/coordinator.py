@@ -24,7 +24,11 @@ from yarbo_robot_sdk import (
     YarboClient,
     YarboSDKError,
 )
-from yarbo_robot_sdk.codec import decode_mqtt_payload, encode_mqtt_payload, should_compress
+from yarbo_robot_sdk.codec import (
+    decode_mqtt_payload,
+    encode_mqtt_payload,
+    should_compress,
+)
 from yarbo_robot_sdk.device_helpers import convert_map_to_geojson
 
 from .const import (
@@ -69,7 +73,6 @@ def _decode_map_data(raw, sn: str):
     if isinstance(raw, dict):
         return raw
     if isinstance(raw, str):
-
         # 1) plain JSON string?
         try:
             parsed = json.loads(raw)
@@ -87,7 +90,6 @@ def _decode_map_data(raw, sn: str):
             pass
         # 3) base64-wrapped zlib?
         try:
-
             decompressed = zlib.decompress(base64.b64decode(raw))
             parsed = json.loads(decompressed.decode("utf-8"))
             if isinstance(parsed, dict):
@@ -689,7 +691,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         if self._client is None:
             return
         try:
-
             topic = f"snowbot/{sn}/app/get_plan_feedback"
             fw = getattr(self._client, "_firmware_versions", {}).get(sn) or ""
             payload: dict = {}

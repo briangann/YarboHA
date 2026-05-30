@@ -241,7 +241,6 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
             ref_lon = ref.get("longitude")
             if ref_lat is not None and ref_lon is not None:
                 try:
-
                     features = []
                     for seg in pf["cleanPathProgress"]:
                         pts = seg.get("path") or []

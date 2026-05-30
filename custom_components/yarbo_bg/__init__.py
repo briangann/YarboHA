@@ -53,7 +53,6 @@ def _register_set_nogozone_enabled(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, "set_nogozone_enabled"):
         return
 
-
     schema = vol.Schema(
         {
             vol.Required("device_id"): cv.string,
