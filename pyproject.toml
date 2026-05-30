@@ -3,4 +3,5 @@ targets = ["custom_components/yarbo"]
 exclude_dirs = ["tests"]
 skips = [
     "B105",  # hardcoded_password_string: false positive on HA config key names
+    "B110",  # try_except_pass: intentional fallback chains in decode/parse loops
 ]
