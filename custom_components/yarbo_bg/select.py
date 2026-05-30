@@ -189,6 +189,18 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
         }
         return list(self._plan_id_map.keys())
 
+    @property
+    def current_option(self) -> str | None:
+        """Return running plan name from plan_feedback, falling back to user selection."""
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        running_area_ids = set(pf.get("areaIds") or [])
+        if running_area_ids:
+            plans = self.coordinator.plan_data.get(self._device.sn, [])
+            for plan in plans:
+                if set(plan.get("areaIds") or []) == running_area_ids:
+                    return plan.get("name")
+        return self._attr_current_option
+
     async def async_select_option(self, option: str) -> None:
         """Record plan selection (no MQTT command — Start Plan button sends it)."""
         self._attr_current_option = option
