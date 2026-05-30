@@ -90,10 +90,12 @@ async def async_setup_entry(
             if field_def.entity_type == "sensor":
                 entities.append(YarboConfigSensor(coordinator, device, field_def))
 
-    # Add map zone sensors
-
+    # Add map zone sensors and plan feedback sensors
     for device in coordinator.devices:
         entities.append(YarboMapSensor(coordinator, device))
+        entities.append(YarboCurrentPlanSensor(coordinator, device))
+        entities.append(YarboCleanAreaSensor(coordinator, device))
+        entities.append(YarboBatteryConsumptionSensor(coordinator, device))
 
     async_add_entities(entities)
 
@@ -214,3 +216,107 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         if self.coordinator.data and self._device.sn in self.coordinator.data:
             return self.coordinator.data[self._device.sn]
         return None
+
+
+class YarboCurrentPlanSensor(
+    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
+):
+    """Sensor showing the name of the currently running plan."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Current Plan"
+    _attr_icon = "mdi:clipboard-play-outline"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_current_plan"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.sn)},
+            name=self._device.name,
+            manufacturer="Yarbo",
+            model=self._device.model,
+            serial_number=self._device.sn,
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        running_area_ids = set(pf.get("areaIds") or [])
+        if not running_area_ids:
+            return None
+        for plan in self.coordinator.plan_data.get(self._device.sn, []):
+            if set(plan.get("areaIds") or []) == running_area_ids:
+                return plan.get("name")
+        return None
+
+
+class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
+    """Sensor showing the actual cleaned area in the current run."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Clean Area"
+    _attr_icon = "mdi:texture-box"
+    _attr_native_unit_of_measurement = "m²"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_clean_area"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.sn)},
+            name=self._device.name,
+            manufacturer="Yarbo",
+            model=self._device.model,
+            serial_number=self._device.sn,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        val = pf.get("actualCleanArea")
+        if val is None:
+            return None
+        return round(float(val), 2)
+
+
+class YarboBatteryConsumptionSensor(
+    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
+):
+    """Sensor showing battery consumed during the current run."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Battery Consumption"
+    _attr_icon = "mdi:battery-minus"
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_battery_consumption"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.sn)},
+            name=self._device.name,
+            manufacturer="Yarbo",
+            model=self._device.model,
+            serial_number=self._device.sn,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        val = pf.get("battery_consumption")
+        if val is None:
+            return None
+        return float(val)
