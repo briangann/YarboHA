@@ -1,6 +1,6 @@
 """Constants for the Yarbo integration."""
 
-DOMAIN = "yarbo"
+DOMAIN = "yarbo_bg"
 PLATFORMS = [
     "sensor",
     "binary_sensor",
