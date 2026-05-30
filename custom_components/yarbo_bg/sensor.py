@@ -149,7 +149,14 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         # Device class
         if field_def.value_map:
             self._attr_device_class = SensorDeviceClass.ENUM
-            self._attr_options = list(dict.fromkeys(field_def.value_map.values()))
+            options = list(dict.fromkeys(field_def.value_map.values()))
+            # planning_status returns head-type-aware verbs not in the static
+            # value_map — add them to options so HA's ENUM validator accepts them.
+            if field_def.custom_extractor == "planning_status":
+                for v in _PLANNING_ACTIVE_VERB.values():
+                    if v not in options:
+                        options.append(v)
+            self._attr_options = options
         elif field_def.device_class:
             try:
                 self._attr_device_class = SensorDeviceClass(field_def.device_class)
