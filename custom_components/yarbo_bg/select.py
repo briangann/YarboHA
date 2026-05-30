@@ -305,4 +305,13 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
             "actual_clean_area": actual_clean_area,
             "battery_consumption": battery_consumption,
             "plan_path_geojson": plan_path_geojson,
+            # DEBUG: expose raw plan_feedback keys so we can discover available fields
+            "_debug_pf_keys": sorted(
+                k for k in pf.keys() if not k.startswith("cleanPathProgress")
+            ),
+            "_debug_pf_raw": {
+                k: v
+                for k, v in pf.items()
+                if k not in ("cleanPathProgress",) and not isinstance(v, (list, dict))
+            },
         }
