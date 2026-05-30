@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.4.9] - 2026-05-30
+
+### Fixed
+- Odometry L/R sensors: `TOTAL_INCREASING` → `MEASUREMENT` (device resets on restart; prior class corrupted HA long-term statistics)
+- Fault binary sensors: replaced `bool(val)` with type-safe `_fault()` helper — `bool("0") == True` was incorrect; non-numeric payloads now treated as no-fault
+- `power_fault` sensor: guard `int(val)` with `isinstance` check
+- `available()` on head-type-gated sensors: guard `int(head_type)` conversion
+- Coordinator: stamp `_last_planning_status[sn] = 5` before scheduling plan-list fetch to prevent duplicate requests from concurrent MQTT callbacks
+- Coordinator: reset `_last_planning_status[sn]` on device reconnect so plan completion fires correctly after a reconnect
+
+---
+
 ## [0.4.8] - 2026-05-30
 
 ### Added
