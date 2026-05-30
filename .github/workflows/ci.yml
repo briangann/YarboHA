@@ -26,7 +26,13 @@ jobs:
       - name: "Install dependencies"
         run: |
           pip install --no-deps /tmp/ha-core
-          pip install "yarbo-data-sdk>=0.2.0" pyright==1.1.409 pytest pytest-asyncio
+          pip install "yarbo-data-sdk>=0.2.0" pyright==1.1.409 pytest pytest-asyncio ruff
+
+      - name: "Run ruff lint"
+        run: ruff check custom_components/yarbo/
+
+      - name: "Run ruff format check"
+        run: ruff format --check custom_components/yarbo/
 
       - name: "Run pyright"
         run: pyright custom_components/yarbo/
