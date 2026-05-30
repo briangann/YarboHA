@@ -277,7 +277,7 @@ class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], Sensor
     """Sensor showing the actual cleaned area in the current run."""
 
     _attr_has_entity_name = True
-    _attr_name = "Clean Area"
+    _attr_name = "Completed Plan Area"
     _attr_icon = "mdi:texture-box"
     _attr_native_unit_of_measurement = "m²"
     _attr_state_class = SensorStateClass.MEASUREMENT
