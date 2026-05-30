@@ -1,0 +1,23 @@
+set_nogozone_enabled:
+  name: Set No-Go Zone Enabled
+  description: Enable or disable a no-go zone on a Yarbo device.
+  fields:
+    device_id:
+      name: Device
+      description: The Yarbo device to update.
+      required: true
+      selector:
+        device:
+          integration: yarbo_bg
+    zone_id:
+      name: Zone ID
+      description: The ID of the no-go zone (integer or string).
+      required: true
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      description: Whether the zone should be active.
+      required: true
+      selector:
+        boolean:
