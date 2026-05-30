@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from yarbo_robot_sdk import get_field_definitions
-from yarbo_robot_sdk.device_helpers import extract_active_network, extract_field
+from yarbo_robot_sdk.device_helpers import (
+    convert_local_to_gps,
+    extract_active_network,
+    extract_field,
+)
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -20,6 +25,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
 from .map_sensor import YarboMapSensor
+
+_LOGGER = logging.getLogger(__name__)
 
 # Sensor device_classes that represent a numeric measurement
 MEASUREMENT_CLASSES = {"battery", "temperature", "humidity", "distance", "pressure"}
@@ -105,6 +112,7 @@ async def async_setup_entry(
     # Add map zone sensors, plan feedback sensors, and raw telemetry sensors
     for device in coordinator.devices:
         entities.append(YarboMapSensor(coordinator, device))
+        entities.append(YarboPlanPathSensor(coordinator, device))
         entities.append(YarboCurrentPlanSensor(coordinator, device))
         entities.append(YarboCleanAreaSensor(coordinator, device))
         entities.append(YarboBatteryConsumptionSensor(coordinator, device))
@@ -772,3 +780,87 @@ class YarboGyroRollSensor(_YarboRawSensorBase):
     def native_value(self) -> float | None:
         val = (self._data().get("RunningStatusMSG") or {}).get("head_gyro_roll")
         return round(float(val), 3) if isinstance(val, (int, float)) else None
+
+
+class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
+    """Sensor exposing the mowing path GeoJSON for the current plan run.
+    State = number of path segments received.
+    Attribute 'geojson' = GeoJSON FeatureCollection (MultiLineString per segment).
+    Disabled by default — enable only if you need the live path on a map card.
+    Add this entity to recorder.exclude in configuration.yaml to avoid the
+    16 KB attribute size warning.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Plan Path"
+    _attr_icon = "mdi:map-marker-path"
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_plan_path"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.sn)},
+            name=self._device.name,
+            manufacturer="Yarbo",
+            model=self._device.model,
+            serial_number=self._device.sn,
+        )
+
+    @property
+    def native_value(self) -> int | None:
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        segments = pf.get("cleanPathProgress") or []
+        return len(segments) if segments else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        segments = pf.get("cleanPathProgress") or []
+        if not segments:
+            return {}
+        gps_ref = self.coordinator.gps_refs.get(self._device.sn) or {}
+        ref = gps_ref.get("ref") or {}
+        ref_lat = ref.get("latitude")
+        ref_lon = ref.get("longitude")
+        if ref_lat is None or ref_lon is None:
+            return {}
+        try:
+            features = []
+            for seg in segments:
+                pts = seg.get("path") or []
+                if len(pts) < 2:
+                    continue
+                coords = []
+                for pt in pts:
+                    try:
+                        lat, lon = convert_local_to_gps(
+                            ref_lat,
+                            ref_lon,
+                            float(pt.get("x", 0)),
+                            float(pt.get("y", 0)),
+                        )
+                        coords.append([round(lon, 7), round(lat, 7)])
+                    except Exception:
+                        pass
+                if len(coords) >= 2:
+                    features.append(
+                        {
+                            "type": "Feature",
+                            "geometry": {"type": "LineString", "coordinates": coords},
+                            "properties": {
+                                "area_id": seg.get("id"),
+                                "clean_index": seg.get("clean_index"),
+                                "clean_times": seg.get("clean_times"),
+                            },
+                        }
+                    )
+            if features:
+                return {"geojson": {"type": "FeatureCollection", "features": features}}
+        except Exception as err:
+            _LOGGER.warning("plan_path geojson build failed: %s", err)
+        return {}
