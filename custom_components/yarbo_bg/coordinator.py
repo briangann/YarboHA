@@ -169,6 +169,9 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
 
     async def async_setup(self) -> None:
         """Initialize SDK client, restore session, connect MQTT, subscribe."""
+        # Restore cached data immediately so entities show last known values
+        # rather than Unknown while REST calls complete.
+        self._load_cache()
 
         api_url = os.environ.get("YARBO_API_BASE_URL")
 
@@ -504,6 +507,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             )
             plans = result.get("data", {}).get("data", [])
             self._plan_data[sn] = plans
+            self._save_cache()
             _LOGGER.info("Plans for %s: %d plans loaded", sn, len(plans))
         except TimeoutError:
             _LOGGER.warning(
@@ -536,6 +540,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             if sn not in self.data:
                 self.data[sn] = {}
             _deep_merge(self.data[sn], msg_data)
+            self._save_cache()
             _LOGGER.info(
                 "Full DeviceMSG snapshot for %s loaded (%d top-level keys: %s)",
                 sn,
@@ -581,6 +586,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             )
             gps_data = result.get("data", {})
             self._gps_refs[sn] = gps_data
+            self._save_cache()
             rtk_fix = gps_data.get("rtkFixType")
             if rtk_fix != 1:
                 _LOGGER.warning(
@@ -649,6 +655,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             geojson = convert_map_to_geojson(raw_data, fallback_ref)
             self._map_data[sn] = geojson
             self._map_raw[sn] = raw_data
+            self._save_cache()
             feature_count = len(geojson.get("features", []))
             _LOGGER.info("Map data for %s: %d features loaded", sn, feature_count)
         except TimeoutError:
@@ -762,6 +769,62 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     DATA_ACCESS_TOKEN: current_token,
                     DATA_REFRESH_TOKEN: current_refresh,
                 },
+            )
+
+    # Cache key used to persist coordinator data across HA restarts.
+    _CACHE_KEY = "_yarbo_cache"
+
+    def _save_cache(self) -> None:
+        """Persist coordinator data to config entry so it survives restarts.
+
+        Saves plan list, MQTT device data, GPS references, and map data.
+        Called after each successful REST fetch so the cache is always fresh.
+        """
+        self.hass.config_entries.async_update_entry(
+            self.entry,
+            data={
+                **self.entry.data,
+                self._CACHE_KEY: {
+                    "plan_data": self._plan_data,
+                    "device_data": self.data or {},
+                    "gps_refs": self._gps_refs,
+                    "map_data": self._map_data,
+                    "map_raw": self._map_raw,
+                },
+            },
+        )
+        _LOGGER.debug("Coordinator cache saved")
+
+    def _load_cache(self) -> None:
+        """Restore coordinator data from config entry cache on startup.
+
+        Populates plan list, MQTT device data, GPS references, and map data
+        from the last saved state so entities show their previous values
+        immediately instead of Unknown while REST calls complete.
+        """
+        cache = self.entry.data.get(self._CACHE_KEY)
+        if not cache:
+            return
+        if plan_data := cache.get("plan_data"):
+            self._plan_data = dict(plan_data)
+            _LOGGER.info(
+                "Restored plan data for %d device(s) from cache", len(self._plan_data)
+            )
+        if device_data := cache.get("device_data"):
+            self.data = dict(device_data)
+            _LOGGER.info(
+                "Restored device data for %d device(s) from cache",
+                len(self.data),
+            )
+        if gps_refs := cache.get("gps_refs"):
+            self._gps_refs = dict(gps_refs)
+        if map_data := cache.get("map_data"):
+            self._map_data = dict(map_data)
+        if map_raw := cache.get("map_raw"):
+            self._map_raw = dict(map_raw)
+        if any([plan_data, device_data, gps_refs, map_data, map_raw]):
+            _LOGGER.info(
+                "Coordinator cache restored — entities will show last known values"
             )
 
     async def async_shutdown(self) -> None:

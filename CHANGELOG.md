@@ -4,6 +4,16 @@ What's new in each release of Yarbo BG.
 
 ---
 
+## [0.4.11] - 2026-05-30
+
+No more "Unknown" after restarting HA, and status labels that reflect what the robot is actually doing.
+
+### Fixed
+- **Unknown entities after restart** — the integration now remembers its last known state (plan list, device data, GPS reference, map data) and restores it immediately on the next startup. Entities that previously showed Unknown until the device responded to requests will now show their last values right away.
+- **Auto Plan Status showed "Cleaning" regardless of head type** — now shows the correct verb: *Mowing* (mower / mower pro), *Blowing Snow* (snow blower), *Blowing* (blower), *Working* (smart cover or no head)
+
+---
+
 ## [0.4.10] - 2026-05-30
 
 Sensor names cleaned up — the Yarbo does mowing and snowblowing, not "cleaning".
