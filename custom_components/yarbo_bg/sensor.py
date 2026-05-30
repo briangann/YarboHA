@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from yarbo_robot_sdk import get_field_definitions
+from yarbo_robot_sdk.device_helpers import extract_active_network, extract_field
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -15,6 +18,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
+from .map_sensor import YarboMapSensor
 
 # Sensor device_classes that represent a numeric measurement
 MEASUREMENT_CLASSES = {"battery", "temperature", "humidity", "distance", "pressure"}
@@ -74,7 +78,6 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Yarbo sensors dynamically from SDK field definitions."""
-    from yarbo_robot_sdk import get_field_definitions
 
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
@@ -88,7 +91,6 @@ async def async_setup_entry(
                 entities.append(YarboConfigSensor(coordinator, device, field_def))
 
     # Add map zone sensors
-    from .map_sensor import YarboMapSensor
 
     for device in coordinator.devices:
         entities.append(YarboMapSensor(coordinator, device))
@@ -166,22 +168,16 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         if data is None:
             return None
         if self._field_def.custom_extractor == "network_priority":
-            from yarbo_robot_sdk.device_helpers import (
-                extract_active_network,
-                extract_field,
-            )
 
             route_priority = extract_field(data, self._field_def.path)
             return extract_active_network(route_priority)
         if self._field_def.custom_extractor == "volume_scale":
-            from yarbo_robot_sdk.device_helpers import extract_field
 
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
             return int(float(raw) * 100)
         if self._field_def.custom_extractor == "rtk_signal":
-            from yarbo_robot_sdk.device_helpers import extract_field
 
             raw = extract_field(data, self._field_def.path)
             # APP logic: 4=Strong, 5=Medium, everything else=Weak
@@ -192,7 +188,6 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
                 return "Medium"
             return "Weak"
         if self._field_def.custom_extractor == "planning_status":
-            from yarbo_robot_sdk.device_helpers import extract_field
 
             raw = extract_field(data, self._field_def.path)
             if raw is None:
@@ -202,7 +197,6 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
                 return PLANNING_STATUS_MAP[code]
             return "Error" if code < 0 else None
         if self._field_def.custom_extractor == "recharging_status":
-            from yarbo_robot_sdk.device_helpers import extract_field
 
             raw = extract_field(data, self._field_def.path)
             if raw is None:
@@ -218,7 +212,6 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         data = self._get_device_data()
         if data is None:
             return None
-        from yarbo_robot_sdk.device_helpers import extract_field
 
         return extract_field(data, field_path)
 

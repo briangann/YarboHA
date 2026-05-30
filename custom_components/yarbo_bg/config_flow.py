@@ -260,10 +260,10 @@ class YarboOptionsFlow(OptionsFlow):
 
         # Fetch fresh device list from API via coordinator's client
         coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
-        if coordinator and coordinator._client:
+        if coordinator and coordinator.client:
             try:
                 devices = await self.hass.async_add_executor_job(
-                    coordinator._client.get_devices
+                    coordinator.client.get_devices
                 )
             except Exception as err:
                 _LOGGER.error("Failed to fetch devices in options flow: %s", err)

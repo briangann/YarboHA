@@ -14,7 +14,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -143,6 +143,11 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self._cloud_points: dict[str, dict] = {}
         self._unsub_heartbeat_check: CALLBACK_TYPE | None = None
         self._unsub_wakeup_renewal: CALLBACK_TYPE | None = None
+
+    @property
+    def client(self):
+        """Return the SDK client, or None if not yet initialised."""
+        return self._client
 
     async def async_setup(self) -> None:
         """Initialize SDK client, restore session, connect MQTT, subscribe."""
@@ -637,7 +642,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         flipped. ``save_nogozone`` isn't in the SDK's control_topics
         allow-list, so we encode + publish directly.
         """
-        from homeassistant.exceptions import HomeAssistantError
 
         if self._client is None:
             raise HomeAssistantError("Yarbo client not initialised")
@@ -661,7 +665,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         payload["enable"] = bool(enabled)
 
         topic = f"snowbot/{sn}/app/save_nogozone"
-        fw = getattr(self._client, "_firmware_versions", {}).get(sn)
+        fw = getattr(self._client, "_firmware_versions", {}).get(sn) or ""
         if should_compress(fw):
             encoded = encode_mqtt_payload(payload)
         else:
@@ -687,7 +691,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         try:
 
             topic = f"snowbot/{sn}/app/get_plan_feedback"
-            fw = getattr(self._client, "_firmware_versions", {}).get(sn)
+            fw = getattr(self._client, "_firmware_versions", {}).get(sn) or ""
             payload: dict = {}
             if should_compress(fw):
                 encoded = encode_mqtt_payload(payload)

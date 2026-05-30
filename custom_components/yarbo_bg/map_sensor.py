@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from collections import Counter
 
+from yarbo_robot_sdk.device_helpers import convert_local_to_gps
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
@@ -108,7 +110,6 @@ class YarboMapSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
         ref_lon = ref.get("longitude") if ref else None
         if barriers and ref_lat is not None and ref_lon is not None:
             try:
-                from yarbo_robot_sdk.device_helpers import convert_local_to_gps
 
                 features = []
                 for i, cluster in enumerate(barriers):
