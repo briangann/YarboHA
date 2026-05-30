@@ -1,145 +1,145 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+What's new in each release of Yarbo BG.
 
 ---
 
 ## [0.4.10] - 2026-05-30
 
+Sensor names cleaned up — the Yarbo does mowing and snowblowing, not "cleaning".
+
 ### Changed
-- Renamed plan-feedback sensors for clarity — the device does mowing/snowblowing, not "cleaning". Entity IDs unchanged.
-  - `Clean Area` → `Completed Plan Area`
-  - `Battery Consumption` → `Plan Battery Consumption`
-  - `Remaining Area` → `Remaining Plan Area`
-  - `Elapsed Time` → `Plan Elapsed Time`
+- Four sensors renamed to better reflect what the device actually does. Entity IDs are unchanged so existing automations and dashboards are not affected.
+  - *Clean Area* → **Completed Plan Area**
+  - *Battery Consumption* → **Plan Battery Consumption**
+  - *Remaining Area* → **Remaining Plan Area**
+  - *Elapsed Time* → **Plan Elapsed Time**
 
 ---
 
 ## [0.4.9] - 2026-05-30
 
+Bug fixes identified during internal code review.
+
 ### Fixed
-- Odometry L/R sensors: `TOTAL_INCREASING` → `MEASUREMENT` (device resets on restart; prior class corrupted HA long-term statistics)
-- Fault binary sensors: replaced `bool(val)` with type-safe `_fault()` helper — `bool("0") == True` was incorrect; non-numeric payloads now treated as no-fault
-- `power_fault` sensor: guard `int(val)` with `isinstance` check
-- `available()` on head-type-gated sensors: guard `int(head_type)` conversion
-- Coordinator: stamp `_last_planning_status[sn] = 5` before scheduling plan-list fetch to prevent duplicate requests from concurrent MQTT callbacks
-- Coordinator: reset `_last_planning_status[sn]` on device reconnect so plan completion fires correctly after a reconnect
+- **Odometry sensors** were using the wrong recorder category, which could corrupt long-term statistics in Home Assistant. Fixed.
+- **Fault sensors** (motor, wheel, radar) could misread non-numeric values from the device as a fault. Fixed with a proper type check.
+- **Current Plan** sensor now correctly updates after the device reconnects to the network — previously it could miss the first plan completion after a reconnect.
+- Minor reliability improvement: plan list is only fetched once on plan completion, even if multiple status updates arrive simultaneously.
 
 ---
 
 ## [0.4.8] - 2026-05-30
 
-### Added
-**Sensors (raw telemetry):**
-- `sensor.*_speed` — average forward speed (m/s)
-- `sensor.*_odometry_left` / `*_odometry_right` — wheel odometry distance (m, `TOTAL_INCREASING`)
-- `sensor.*_positioning_confidence` — fused odometry confidence (0–1)
-- `sensor.*_rain_sensor` — rain sensor raw reading
-- `sensor.*_chute_angle` — snow chute angle (°), **Snow Blower head only** (unavailable with other heads)
-- `sensor.*_proximity_left` / `*_proximity_center` / `*_proximity_right` — ultrasonic distances (mm; 9999 = no obstacle)
-- `sensor.*_head_gyro_pitch` / `*_head_gyro_roll` — head gyro angles (°), disabled by default
+Major expansion of live device telemetry — speed, proximity, fault detection, and more.
 
-**Binary sensors (fault/status from `abnormal_msg`):**
-- `binary_sensor.*_impact` — bump/collision detected (`vibration` device class)
-- `binary_sensor.*_left_motor_fault` / `*_right_motor_fault` — motor faults (`problem` device class)
-- `binary_sensor.*_left_wheel_fault` / `*_right_wheel_fault` — wheel faults
-- `binary_sensor.*_radar_fault` — radar/obstacle detection fault
-- `binary_sensor.*_power_fault` — power fault (fires when `power_fault > 0`)
+### New
+- **Speed** — real-time forward speed in m/s
+- **Odometry** — total distance traveled by each wheel
+- **Positioning Confidence** — how confident the device is in its GPS/odometry position (0–1)
+- **Rain Sensor** — raw reading from the rain detection sensor
+- **Chute Angle** — snow chute direction; only appears when the Snow Blower head is attached
+- **Proximity** (left, center, right) — ultrasonic obstacle detection distances; 9999 = clear
+- **Head Gyro Pitch / Roll** — head attachment angle (disabled by default, useful for diagnostics)
+- **Impact** — fires when the robot detects a collision
+- **Motor Fault** (left, right) — fires when a drive motor reports an error
+- **Wheel Fault** (left, right) — fires when a wheel reports a fault
+- **Radar Fault** — fires when the obstacle radar reports a fault
+- **Power Fault** — fires when the device reports a power issue
 
 ### Changed
-- Head-type gating: sensors unavailable when the wrong attachment is fitted (e.g. chute angle only for Snow Blower)
+- Head-specific sensors (e.g. Chute Angle) automatically show as unavailable when the wrong head is attached
 
 ---
 
 ## [0.4.7] - 2026-05-30
 
-### Added
-- `sensor.*_plan_progress` — plan completion percentage (`actualCleanArea / totalCleanArea × 100`)
-- `sensor.*_remaining_area` — area left to clean in current run (m²)
-- `sensor.*_time_remaining` — estimated time remaining (seconds, `SensorDeviceClass.DURATION`)
-- `sensor.*_elapsed_time` — time elapsed since plan start (seconds)
-- `sensor.*_total_plan_area` — total area of the current plan (m²)
-- `sensor.*_total_plan_time` — estimated total plan duration (seconds)
+More plan progress details, and the Plan selector now shows what's actually running.
+
+### New
+- **Plan Progress** — completion percentage of the current plan (0–100%)
+- **Remaining Plan Area** — area still to be covered (m²)
+- **Estimated Time Remaining** — device estimate of time left in the plan
+- **Plan Elapsed Time** — how long the current plan has been running
+- **Total Plan Area** — total area of the current plan (m²)
+- **Total Plan Time** — estimated total duration of the plan
 
 ### Fixed
-- Plan list auto-refreshes when `on_going_planning` transitions to `5` (Completed) — `Current Plan` sensor resolves correctly after next run without manual button press
-- `Plan Select` and `Current Plan` survive HA restart while a plan is running (plan list re-fetched on completion)
+- **Plan Select** was showing *unknown* while a plan was running — it now shows the active plan name
+- **Current Plan** sensor now automatically updates after plan completion, without needing to press *Refresh Plans* manually
 
 ---
 
 ## [0.4.6] - 2026-05-30
 
-### Added
-- `sensor.*_current_plan` — name of the currently running plan (e.g. "South Front"), matched from `plan_feedback.areaIds` against the plan list
-- `sensor.*_clean_area` — area covered in the current run (m²)
-- `sensor.*_battery_consumption` — battery % used in the current run
+Know what your Yarbo is doing and how much it's done.
+
+### New
+- **Current Plan** — the name of the plan currently running (e.g. "South Front")
+- **Completed Plan Area** — area covered so far in the current plan run (m²)
+- **Plan Battery Consumption** — battery percentage used during the current run
 
 ### Fixed
-- `Plan Select` state now reflects the active plan name while a plan is running instead of showing `unknown`
+- **Plan Select** now shows the active plan name while a plan is running instead of showing *unknown*
 
 ---
 
 ## [0.4.5] - 2026-05-30
 
+Clearer sensor names and a diagnostic attribute for the charging sensor.
+
 ### Fixed
-- Rename `Charging` binary sensor display name to `Active Charge` in code — avoids confusion with `Recharging Status` which also uses "Charging" as a state value. Fresh installs now get the correct name without a manual entity rename.
-- Expose `battery_status_raw` attribute on the `Active Charge` binary sensor for threshold diagnosis.
+- The *Charging* sensor was renamed to **Active Charge** to avoid confusion with *Recharging Status*, which also uses "Charging" as a state value
+- The **Active Charge** sensor now exposes its raw underlying value as an attribute, useful for diagnosing when the threshold should trigger
 
 ---
 
 ## [0.4.4] - 2026-05-30
 
+Cleaner shutdowns — no more error messages when restarting Home Assistant.
+
 ### Fixed
-- Graceful HA shutdown: MQTT paho thread no longer throws `RuntimeError: Event loop is closed` during restart. All MQTT callbacks use a `_schedule_update()` helper that silently absorbs the error when the event loop is already closed.
+- Home Assistant no longer logs `Event loop is closed` errors from the Yarbo integration when HA restarts
 
 ---
 
 ## [0.4.3] - 2026-05-30
 
-### Changed
-- Move all lazy `yarbo_robot_sdk` imports to module level across every entity file — eliminates event-loop blocking I/O on first import (was causing HA startup warnings).
-- Add public `coordinator.client` property; remove all direct accesses to `coordinator._client` from entity files.
-- Add `pre-commit install` to `make setup` — ruff lint + format now runs on every commit automatically.
+Internal reliability and startup improvements.
 
 ### Fixed
-- `number.py`: `native_value` returned `int` in the volume-scale branch; now correctly returns `float`.
-- `select.py`: remove inline `import logging as _logging`; use module-level `_LOGGER`.
+- HA was logging blocking I/O warnings at startup caused by the integration loading the SDK on the event loop — resolved
+- Volume entity now correctly reports its value as a percentage in all cases
 
 ---
 
 ## [0.4.2] - 2026-05-30
 
+Startup warning eliminated.
+
 ### Fixed
-- Move `yarbo_robot_sdk` imports to module level in `coordinator.py` — eliminates blocking I/O warnings on HA startup (SDK was scanning device JSON files on the event loop).
+- HA was logging blocking I/O warnings at startup when the integration loaded device data — resolved
 
 ---
 
 ## [0.4.1] - 2026-05-30
 
 ### Fixed
-- Add missing `services.yaml` for the `set_nogozone_enabled` service (was causing an `ERROR` log on startup).
+- An error was logged at every startup because the `set_nogozone_enabled` service was missing its definition file — fixed
 
 ---
 
 ## [0.4.0] - 2026-05-30
 
-### Changed
-- **Breaking**: Renamed integration domain `yarbo` → `yarbo_bg` to avoid conflict with any upstream Yarbo integration in HA core. Existing installs must remove and re-add the integration.
-- Updated `hacs.json` display name to "Yarbo BG".
+**Breaking change** — re-installation required if upgrading from 0.3.x.
 
-### Added
-- CI: `COMPONENT` and `HA_BRANCH` env vars in workflow — single place to update on rename or HA version bump.
-- CI: pip download cache and HA core clone cache.
-- CI: concurrency cancellation on PRs.
-- CI: `--tb=short` on pytest.
-- Release workflow: versioned zip artifact (`yarbo_bg-vX.Y.Z.zip`), zips only the component directory.
-- Dev: `pre-commit` hooks (ruff lint + format).
-- Security: pinned all dev dependencies to exact versions.
+### Changed
+- Integration renamed from `yarbo` to `yarbo_bg` to avoid conflict with any official Yarbo integration that may be added to Home Assistant in the future
+- The integration now appears in HACS and HA as **Yarbo BG**
+- Existing installs must remove the old integration and re-add **Yarbo BG** — entity IDs will change
 
 ---
 
 ## [0.3.2] - 2026-05-29
 
-### Added
-- Test infrastructure and dev tooling (`make setup`, `make check`, pyright, ruff, bandit).
-- Map and plan features from upstream PRs #2 and #7.
+Initial release of this fork with test infrastructure, map visualization, and plan management features.
