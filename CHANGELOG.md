@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.4.10] - 2026-05-30
+
+### Changed
+- Renamed plan-feedback sensors for clarity — the device does mowing/snowblowing, not "cleaning". Entity IDs unchanged.
+  - `Clean Area` → `Completed Plan Area`
+  - `Battery Consumption` → `Plan Battery Consumption`
+  - `Remaining Area` → `Remaining Plan Area`
+  - `Elapsed Time` → `Plan Elapsed Time`
+
+---
+
 ## [0.4.9] - 2026-05-30
 
 ### Fixed
