@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import logging
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import YarboDataUpdateCoordinator
@@ -48,12 +52,6 @@ def _register_set_nogozone_enabled(hass: HomeAssistant) -> None:
     """Register the yarbo.set_nogozone_enabled service (idempotent)."""
     if hass.services.has_service(DOMAIN, "set_nogozone_enabled"):
         return
-
-    import voluptuous as vol
-    from homeassistant.core import ServiceCall
-    from homeassistant.exceptions import ServiceValidationError
-    from homeassistant.helpers import config_validation as cv
-    from homeassistant.helpers import device_registry as dr
 
     schema = vol.Schema(
         {

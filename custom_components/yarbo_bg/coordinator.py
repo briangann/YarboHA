@@ -14,7 +14,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -24,7 +24,11 @@ from yarbo_robot_sdk import (
     YarboClient,
     YarboSDKError,
 )
-from yarbo_robot_sdk.codec import decode_mqtt_payload, encode_mqtt_payload, should_compress
+from yarbo_robot_sdk.codec import (
+    decode_mqtt_payload,
+    encode_mqtt_payload,
+    should_compress,
+)
 from yarbo_robot_sdk.device_helpers import convert_map_to_geojson
 
 from .const import (
@@ -69,7 +73,6 @@ def _decode_map_data(raw, sn: str):
     if isinstance(raw, dict):
         return raw
     if isinstance(raw, str):
-
         # 1) plain JSON string?
         try:
             parsed = json.loads(raw)
@@ -87,7 +90,6 @@ def _decode_map_data(raw, sn: str):
             pass
         # 3) base64-wrapped zlib?
         try:
-
             decompressed = zlib.decompress(base64.b64decode(raw))
             parsed = json.loads(decompressed.decode("utf-8"))
             if isinstance(parsed, dict):
@@ -143,6 +145,11 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self._cloud_points: dict[str, dict] = {}
         self._unsub_heartbeat_check: CALLBACK_TYPE | None = None
         self._unsub_wakeup_renewal: CALLBACK_TYPE | None = None
+
+    @property
+    def client(self):
+        """Return the SDK client, or None if not yet initialised."""
+        return self._client
 
     async def async_setup(self) -> None:
         """Initialize SDK client, restore session, connect MQTT, subscribe."""
@@ -265,7 +272,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 plan_topic = f"snowbot/{device.sn}/device/plan_feedback"
 
                 def _on_plan_feedback(topic_str, payload, _sn=device.sn):
-
                     try:
                         data = decode_mqtt_payload(payload)
                     except Exception as err:
@@ -299,7 +305,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 cloud_topic = f"snowbot/{device.sn}/device/cloud_points_feedback"
 
                 def _on_cloud_points(topic_str, payload, _sn=device.sn):
-
                     try:
                         data = decode_mqtt_payload(payload)
                     except Exception as err:
@@ -637,7 +642,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         flipped. ``save_nogozone`` isn't in the SDK's control_topics
         allow-list, so we encode + publish directly.
         """
-        from homeassistant.exceptions import HomeAssistantError
 
         if self._client is None:
             raise HomeAssistantError("Yarbo client not initialised")
@@ -685,7 +689,6 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         if self._client is None:
             return
         try:
-
             topic = f"snowbot/{sn}/app/get_plan_feedback"
             fw = getattr(self._client, "_firmware_versions", {}).get(sn)
             payload: dict = {}

@@ -15,6 +15,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
+from yarbo_robot_sdk import get_control_field_definitions
+from yarbo_robot_sdk.device_helpers import extract_field
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +29,6 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Yarbo number entities from SDK control field definitions."""
-    from yarbo_robot_sdk import get_control_field_definitions
 
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
@@ -99,7 +100,7 @@ class YarboConfigNumber(CoordinatorEntity[YarboDataUpdateCoordinator], NumberEnt
         val = float(raw)
         # Volume is reported as 0-1 float, scale to 0-100 for display
         if self._ctrl_def.command_builder == "sound_volume":
-            val = int(val * 100)
+            val = float(int(val * 100))
         return val
 
     async def async_set_native_value(self, value: float) -> None:
@@ -111,11 +112,11 @@ class YarboConfigNumber(CoordinatorEntity[YarboDataUpdateCoordinator], NumberEnt
         if self._ctrl_def.command_builder == "sound_volume":
             device_value = value / 100.0
         payload = self._build_payload(device_value)
-        if self.coordinator._client is None:
+        if self.coordinator.client is None:
             return
         try:
             await self.hass.async_add_executor_job(
-                self.coordinator._client.mqtt_publish_command,
+                self.coordinator.client.mqtt_publish_command,
                 self._device.sn,
                 self._device.type_id,
                 self._ctrl_def.command_topic,
@@ -139,7 +140,6 @@ class YarboConfigNumber(CoordinatorEntity[YarboDataUpdateCoordinator], NumberEnt
         device_data = self.coordinator.data.get(self._device.sn)
         if device_data is None:
             return None
-        from yarbo_robot_sdk.device_helpers import extract_field
 
         return extract_field(device_data, self._ctrl_def.path)
 
@@ -149,7 +149,6 @@ class YarboConfigNumber(CoordinatorEntity[YarboDataUpdateCoordinator], NumberEnt
         device_data = self.coordinator.data.get(self._device.sn)
         if device_data is None:
             return None
-        from yarbo_robot_sdk.device_helpers import extract_field
 
         return extract_field(device_data, field_path)
 

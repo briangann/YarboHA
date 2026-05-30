@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+from yarbo_robot_sdk.device_helpers import convert_local_to_gps, extract_field
+
 from homeassistant.components.device_tracker.const import SourceType
 from homeassistant.components.device_tracker.config_entry import TrackerEntity
 from homeassistant.config_entries import ConfigEntry
@@ -111,7 +113,6 @@ class YarboDeviceTracker(CoordinatorEntity[YarboDataUpdateCoordinator], TrackerE
         attrs["rtk_fix_type"] = gps_ref.get("rtkFixType")
 
         device_data = (self.coordinator.data or {}).get(self._device.sn, {})
-        from yarbo_robot_sdk.device_helpers import extract_field
 
         attrs["position_x"] = extract_field(device_data, "CombinedOdom.x")
         attrs["position_y"] = extract_field(device_data, "CombinedOdom.y")
@@ -142,7 +143,6 @@ class YarboDeviceTracker(CoordinatorEntity[YarboDataUpdateCoordinator], TrackerE
             return
 
         device_data = (self.coordinator.data or {}).get(self._device.sn, {})
-        from yarbo_robot_sdk.device_helpers import extract_field, convert_local_to_gps
 
         local_x = extract_field(device_data, "CombinedOdom.x")
         local_y = extract_field(device_data, "CombinedOdom.y")

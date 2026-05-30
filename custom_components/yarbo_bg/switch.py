@@ -14,6 +14,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
+from yarbo_robot_sdk import get_control_field_definitions
+from yarbo_robot_sdk.device_helpers import extract_field
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,7 +30,6 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Yarbo switch entities from SDK control field definitions."""
-    from yarbo_robot_sdk import get_control_field_definitions
 
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
@@ -111,13 +112,13 @@ class YarboConfigSwitch(CoordinatorEntity[YarboDataUpdateCoordinator], SwitchEnt
 
     async def _async_send_command(self, turn_on: bool) -> None:
         """Build and send the MQTT command payload."""
-        if self.coordinator._client is None:
+        if self.coordinator.client is None:
             return
         self._command_sent_at = time.monotonic()
         payload = self._build_payload(turn_on)
         try:
             await self.hass.async_add_executor_job(
-                self.coordinator._client.mqtt_publish_command,
+                self.coordinator.client.mqtt_publish_command,
                 self._device.sn,
                 self._device.type_id,
                 self._ctrl_def.command_topic,
@@ -154,7 +155,6 @@ class YarboConfigSwitch(CoordinatorEntity[YarboDataUpdateCoordinator], SwitchEnt
         device_data = self.coordinator.data.get(self._device.sn)
         if device_data is None:
             return None
-        from yarbo_robot_sdk.device_helpers import extract_field
 
         return extract_field(device_data, self._ctrl_def.path)
 
@@ -165,6 +165,5 @@ class YarboConfigSwitch(CoordinatorEntity[YarboDataUpdateCoordinator], SwitchEnt
         device_data = self.coordinator.data.get(self._device.sn)
         if device_data is None:
             return None
-        from yarbo_robot_sdk.device_helpers import extract_field
 
         return extract_field(device_data, field_path)
