@@ -154,6 +154,63 @@ paths use dot notation into the raw device payload.
 | State class | `measurement` |
 | Notes | Battery percentage consumed during the current run. |
 
+### Plan Progress *(new in 0.4.7)*
+| Property | Value |
+|---|---|
+| Entity ID pattern | `sensor.<sn>_plan_progress` |
+| Source | `actualCleanArea / totalCleanArea × 100` (computed) |
+| Unit | `%` |
+| State class | `measurement` |
+| Notes | Plan completion 0–100%. `None` when no plan is active. |
+
+### Remaining Area *(new in 0.4.7)*
+| Property | Value |
+|---|---|
+| Entity ID pattern | `sensor.<sn>_remaining_area` |
+| Source | `totalCleanArea - actualCleanArea` (computed) |
+| Unit | `m²` |
+| State class | `measurement` |
+| Notes | Area left to clean. `None` when no plan is active. |
+
+### Estimated Time Remaining *(new in 0.4.7)*
+| Property | Value |
+|---|---|
+| Entity ID pattern | `sensor.<sn>_estimated_time_remaining` |
+| Source | `plan_feedback.leftTime` |
+| Unit | `s` |
+| Device class | `duration` |
+| State class | `measurement` |
+| Notes | Device-estimated seconds until plan completion. |
+
+### Elapsed Time *(new in 0.4.7)*
+| Property | Value |
+|---|---|
+| Entity ID pattern | `sensor.<sn>_elapsed_time` |
+| Source | `plan_feedback.duration` |
+| Unit | `s` |
+| Device class | `duration` |
+| State class | `measurement` |
+| Notes | Seconds since the current plan started. |
+
+### Total Plan Area *(new in 0.4.7)*
+| Property | Value |
+|---|---|
+| Entity ID pattern | `sensor.<sn>_total_plan_area` |
+| Source | `plan_feedback.totalCleanArea` |
+| Unit | `m²` |
+| State class | `measurement` |
+| Notes | Total mapped area of the current plan. Stable during a run. |
+
+### Total Plan Time *(new in 0.4.7)*
+| Property | Value |
+|---|---|
+| Entity ID pattern | `sensor.<sn>_total_plan_time` |
+| Source | `plan_feedback.totalTime` |
+| Unit | `s` |
+| Device class | `duration` |
+| State class | `measurement` |
+| Notes | Device-estimated total duration for the full plan. |
+
 ---
 
 ## Binary Sensors

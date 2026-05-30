@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.4.7] - 2026-05-30
+
+### Added
+- `sensor.*_plan_progress` — plan completion percentage (`actualCleanArea / totalCleanArea × 100`)
+- `sensor.*_remaining_area` — area left to clean in current run (m²)
+- `sensor.*_time_remaining` — estimated time remaining (seconds, `SensorDeviceClass.DURATION`)
+- `sensor.*_elapsed_time` — time elapsed since plan start (seconds)
+- `sensor.*_total_plan_area` — total area of the current plan (m²)
+- `sensor.*_total_plan_time` — estimated total plan duration (seconds)
+
+### Fixed
+- Plan list auto-refreshes when `on_going_planning` transitions to `5` (Completed) — `Current Plan` sensor resolves correctly after next run without manual button press
+- `Plan Select` and `Current Plan` survive HA restart while a plan is running (plan list re-fetched on completion)
+
+---
+
 ## [0.4.6] - 2026-05-30
 
 ### Added
