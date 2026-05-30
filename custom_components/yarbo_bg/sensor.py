@@ -28,7 +28,7 @@ MEASUREMENT_CLASSES = {"battery", "temperature", "humidity", "distance", "pressu
 # Status 1 ("actively working") is overridden at runtime based on head type.
 PLANNING_STATUS_MAP: dict[int, str] = {
     0: "Not Started",
-    1: "Working",  # overridden by _PLANNING_ACTIVE_VERB at runtime
+    1: "Working",  # unreachable — code==1 is intercepted by _PLANNING_ACTIVE_VERB above
     2: "Calculating Route",
     3: "Heading to Area",
     5: "Completed",
