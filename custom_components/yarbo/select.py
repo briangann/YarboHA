@@ -45,9 +45,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class YarboConfigSelect(
-    CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntity
-):
+class YarboConfigSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntity):
     """Configuration-driven select entity.
 
     Uses _attr_current_option as the single source of truth so HA's frontend
@@ -139,9 +137,7 @@ class YarboConfigSelect(
 
         # Notify coordinator about standby state changes
         if self._ctrl_def.command_topic == "set_working_state":
-            self.coordinator.set_user_standby(
-                self._device.sn, option == "standby"
-            )
+            self.coordinator.set_user_standby(self._device.sn, option == "standby")
             if option == "working":
                 # Trigger immediate wake-up
                 await self.coordinator._async_send_wakeup(
@@ -155,12 +151,11 @@ class YarboConfigSelect(
         if device_data is None:
             return None
         from yarbo_robot_sdk.device_helpers import extract_field
+
         return extract_field(device_data, self._ctrl_def.path)
 
 
-class YarboPlanSelect(
-    CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntity
-):
+class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntity):
     """Plan selector — dynamic options from coordinator plan_data."""
 
     _attr_has_entity_name = True
@@ -187,7 +182,9 @@ class YarboPlanSelect(
     @property
     def options(self) -> list[str]:
         plans = self.coordinator.plan_data.get(self._device.sn, [])
-        self._plan_id_map = {p["name"]: p["id"] for p in plans if "name" in p and "id" in p}
+        self._plan_id_map = {
+            p["name"]: p["id"] for p in plans if "name" in p and "id" in p
+        }
         return list(self._plan_id_map.keys())
 
     async def async_select_option(self, option: str) -> None:

@@ -27,16 +27,11 @@ async def async_setup_entry(
     """Set up Yarbo map sensor entities."""
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    entities = [
-        YarboMapSensor(coordinator, device)
-        for device in coordinator.devices
-    ]
+    entities = [YarboMapSensor(coordinator, device) for device in coordinator.devices]
     async_add_entities(entities)
 
 
-class YarboMapSensor(
-    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
-):
+class YarboMapSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
     """Sensor entity exposing map zone data as GeoJSON FeatureCollection."""
 
     _attr_has_entity_name = True
@@ -76,8 +71,7 @@ class YarboMapSensor(
 
         features = geojson.get("features", [])
         type_counts = Counter(
-            f.get("properties", {}).get("zone_type", "unknown")
-            for f in features
+            f.get("properties", {}).get("zone_type", "unknown") for f in features
         )
 
         attrs = {
@@ -93,4 +87,3 @@ class YarboMapSensor(
             attrs["longitude"] = ref["longitude"]
 
         return attrs
-

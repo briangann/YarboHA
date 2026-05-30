@@ -7,7 +7,7 @@ import time
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -46,9 +46,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class YarboConfigNumber(
-    CoordinatorEntity[YarboDataUpdateCoordinator], NumberEntity
-):
+class YarboConfigNumber(CoordinatorEntity[YarboDataUpdateCoordinator], NumberEntity):
     """Configuration-driven number entity for volume control."""
 
     _attr_has_entity_name = True
@@ -140,6 +138,7 @@ class YarboConfigNumber(
         if device_data is None:
             return None
         from yarbo_robot_sdk.device_helpers import extract_field
+
         return extract_field(device_data, self._ctrl_def.path)
 
     def _get_sibling_value(self, field_path: str):
@@ -149,6 +148,7 @@ class YarboConfigNumber(
         if device_data is None:
             return None
         from yarbo_robot_sdk.device_helpers import extract_field
+
         return extract_field(device_data, field_path)
 
 

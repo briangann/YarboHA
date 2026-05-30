@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest
+pytest-asyncio
+pyright==1.1.409
+ruff
+pre-commit
