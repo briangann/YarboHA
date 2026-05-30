@@ -1,5 +1,5 @@
 [tool.bandit]
-targets = ["custom_components/yarbo"]
+targets = ["custom_components/yarbo_bg"]
 exclude_dirs = ["tests"]
 skips = [
     "B105",  # hardcoded_password_string: false positive on HA config key names

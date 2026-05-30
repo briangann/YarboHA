@@ -1,6 +1,6 @@
 """Prevent HA runtime imports from blocking unit tests.
 
-custom_components/yarbo/__init__.py imports HA at package load time.
+custom_components/yarbo_bg/__init__.py imports HA at package load time.
 Modules under test (coordinator.py, const.py, etc.) don't need HA
 themselves, so mock the whole homeassistant namespace before collection.
 """

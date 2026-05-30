@@ -1,6 +1,6 @@
 """Tests for coordinator.py pure functions."""
 
-from custom_components.yarbo.coordinator import _deep_merge
+from custom_components.yarbo_bg.coordinator import _deep_merge
 
 
 class TestDeepMerge:
