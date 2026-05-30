@@ -111,6 +111,8 @@ class YarboConfigNumber(CoordinatorEntity[YarboDataUpdateCoordinator], NumberEnt
         if self._ctrl_def.command_builder == "sound_volume":
             device_value = value / 100.0
         payload = self._build_payload(device_value)
+        if self.coordinator._client is None:
+            return
         try:
             await self.hass.async_add_executor_job(
                 self.coordinator._client.mqtt_publish_command,
@@ -168,7 +170,7 @@ class YarboPlanStartPercent(RestoreEntity, NumberEntity):
         self._coordinator = coordinator
         self._device = device
         self._attr_unique_id = f"{device.sn}_plan_start_percent"
-        self._attr_native_value: float = 0
+        self._attr_native_value: float | None = 0.0
 
     @property
     def device_info(self) -> DeviceInfo:
