@@ -89,9 +89,7 @@ class YarboMapSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
         # Per-zone no-go metadata (id / name / enable) so consumers
         # can expose a toggle UI. Lightweight — the heavy 'range' and
         # 'ref' fields stay hidden behind map_raw.
-        raw_map = getattr(self.coordinator, "map_raw", {}).get(
-            self._device.sn
-        ) or {}
+        raw_map = getattr(self.coordinator, "map_raw", {}).get(self._device.sn) or {}
         nogo_list = [
             {
                 "id": z.get("id"),
@@ -104,15 +102,14 @@ class YarboMapSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
             attrs["nogo_zones"] = nogo_list
 
         # Dynamic obstacles from cloud_points_feedback, GPS-projected.
-        cp = getattr(self.coordinator, "cloud_points", {}).get(
-            self._device.sn
-        ) or {}
+        cp = getattr(self.coordinator, "cloud_points", {}).get(self._device.sn) or {}
         barriers = cp.get("tmp_barrier_points") or []
         ref_lat = ref.get("latitude") if ref else None
         ref_lon = ref.get("longitude") if ref else None
         if barriers and ref_lat is not None and ref_lon is not None:
             try:
                 from yarbo_robot_sdk.device_helpers import convert_local_to_gps
+
                 features = []
                 for i, cluster in enumerate(barriers):
                     if not isinstance(cluster, list) or not cluster:
@@ -126,9 +123,7 @@ class YarboMapSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
                                 float(pt.get("x", 0)),
                                 float(pt.get("y", 0)),
                             )
-                            coords.append(
-                                [round(lon, 7), round(lat, 7)]
-                            )
+                            coords.append([round(lon, 7), round(lat, 7)])
                         except Exception:
                             pass
                     if not coords:
@@ -138,11 +133,13 @@ class YarboMapSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
                         if len(coords) == 1
                         else {"type": "MultiPoint", "coordinates": coords}
                     )
-                    features.append({
-                        "type": "Feature",
-                        "geometry": geom,
-                        "properties": {"obstacle_index": i},
-                    })
+                    features.append(
+                        {
+                            "type": "Feature",
+                            "geometry": geom,
+                            "properties": {"obstacle_index": i},
+                        }
+                    )
                 if features:
                     attrs["obstacles_geojson"] = {
                         "type": "FeatureCollection",
@@ -151,7 +148,8 @@ class YarboMapSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
                     attrs["obstacle_count"] = len(features)
             except Exception as err:
                 _LOGGER.warning(
-                    "obstacles_geojson build failed: %s", err,
+                    "obstacles_geojson build failed: %s",
+                    err,
                 )
 
         return attrs

@@ -227,9 +227,7 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
                     area_ids = list(p.get("areaIds") or [])
                     break
 
-        pf = getattr(self.coordinator, "plan_feedback", {}).get(
-            self._device.sn
-        ) or {}
+        pf = getattr(self.coordinator, "plan_feedback", {}).get(self._device.sn) or {}
         running_area_id = pf.get("cleanAreaId")
         running_area_ids = pf.get("areaIds") or []
         actual_clean_area = pf.get("actualCleanArea")
@@ -244,6 +242,7 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
             if ref_lat is not None and ref_lon is not None:
                 try:
                     from yarbo_robot_sdk.device_helpers import convert_local_to_gps
+
                     features = []
                     for seg in pf["cleanPathProgress"]:
                         pts = seg.get("path") or []
@@ -258,25 +257,25 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
                                     float(pt.get("x", 0)),
                                     float(pt.get("y", 0)),
                                 )
-                                coords.append(
-                                    [round(lon, 7), round(lat, 7)]
-                                )
+                                coords.append([round(lon, 7), round(lat, 7)])
                             except Exception:
                                 pass
                         if len(coords) < 2:
                             continue
-                        features.append({
-                            "type": "Feature",
-                            "geometry": {
-                                "type": "LineString",
-                                "coordinates": coords,
-                            },
-                            "properties": {
-                                "area_id": seg.get("id"),
-                                "clean_index": seg.get("clean_index"),
-                                "clean_times": seg.get("clean_times"),
-                            },
-                        })
+                        features.append(
+                            {
+                                "type": "Feature",
+                                "geometry": {
+                                    "type": "LineString",
+                                    "coordinates": coords,
+                                },
+                                "properties": {
+                                    "area_id": seg.get("id"),
+                                    "clean_index": seg.get("clean_index"),
+                                    "clean_times": seg.get("clean_times"),
+                                },
+                            }
+                        )
                     if features:
                         plan_path_geojson = {
                             "type": "FeatureCollection",
@@ -284,8 +283,10 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
                         }
                 except Exception as err:
                     import logging as _logging
+
                     _logging.getLogger(__name__).warning(
-                        "plan_path_geojson build failed: %s", err,
+                        "plan_path_geojson build failed: %s",
+                        err,
                     )
         return {
             "plan_id": current_plan_id,

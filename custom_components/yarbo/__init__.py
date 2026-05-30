@@ -55,11 +55,13 @@ def _register_set_nogozone_enabled(hass: HomeAssistant) -> None:
     from homeassistant.helpers import config_validation as cv
     from homeassistant.helpers import device_registry as dr
 
-    schema = vol.Schema({
-        vol.Required("device_id"): cv.string,
-        vol.Required("zone_id"): vol.Any(int, str),
-        vol.Required("enabled"): cv.boolean,
-    })
+    schema = vol.Schema(
+        {
+            vol.Required("device_id"): cv.string,
+            vol.Required("zone_id"): vol.Any(int, str),
+            vol.Required("enabled"): cv.boolean,
+        }
+    )
 
     async def handle(call: ServiceCall) -> None:
         device_id = call.data["device_id"]
@@ -69,33 +71,30 @@ def _register_set_nogozone_enabled(hass: HomeAssistant) -> None:
         if ha_device is None:
             raise ServiceValidationError(f"Device {device_id} not found")
         if not ha_device.config_entries:
-            raise ServiceValidationError(
-                f"Device {device_id} has no config entry"
-            )
+            raise ServiceValidationError(f"Device {device_id} has no config entry")
         entry_id = next(iter(ha_device.config_entries))
         coordinator = hass.data.get(DOMAIN, {}).get(entry_id)
         if coordinator is None:
-            raise ServiceValidationError(
-                f"Device {device_id} not managed by yarbo"
-            )
+            raise ServiceValidationError(f"Device {device_id} not managed by yarbo")
         sn = next(
-            (i[1] for i in ha_device.identifiers if i[0] == DOMAIN), None,
+            (i[1] for i in ha_device.identifiers if i[0] == DOMAIN),
+            None,
         )
         if sn is None:
-            raise ServiceValidationError(
-                f"Device {device_id} has no Yarbo identifier"
-            )
-        yarbo_dev = next(
-            (d for d in coordinator.devices if d.sn == sn), None
-        )
+            raise ServiceValidationError(f"Device {device_id} has no Yarbo identifier")
+        yarbo_dev = next((d for d in coordinator.devices if d.sn == sn), None)
         if yarbo_dev is None:
-            raise ServiceValidationError(
-                f"Device {sn} not in coordinator.devices"
-            )
+            raise ServiceValidationError(f"Device {sn} not in coordinator.devices")
         await coordinator.async_set_nogozone_enabled(
-            sn, yarbo_dev.type_id, zone_id, enabled,
+            sn,
+            yarbo_dev.type_id,
+            zone_id,
+            enabled,
         )
 
     hass.services.async_register(
-        DOMAIN, "set_nogozone_enabled", handle, schema=schema,
+        DOMAIN,
+        "set_nogozone_enabled",
+        handle,
+        schema=schema,
     )
