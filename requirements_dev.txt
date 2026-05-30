@@ -1,9 +1,9 @@
 -r requirements.txt
-pytest
-pytest-cov
-pytest-asyncio
+pytest==9.0.3
+pytest-cov==7.1.0
+pytest-asyncio==1.4.0
 pyright==1.1.409
-ruff
-bandit[toml]
-pre-commit
-voluptuous
+ruff==0.15.15
+bandit[toml]==1.9.4
+pre-commit==4.6.0
+voluptuous==0.16.0
