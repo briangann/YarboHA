@@ -40,3 +40,6 @@ jobs:
 
       - name: "Run tests"
         run: pytest
+
+      - name: "Compile check"
+        run: python -m compileall custom_components/yarbo/ -q
