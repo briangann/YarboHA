@@ -10,6 +10,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.const import UnitOfTime
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -96,6 +97,12 @@ async def async_setup_entry(
         entities.append(YarboCurrentPlanSensor(coordinator, device))
         entities.append(YarboCleanAreaSensor(coordinator, device))
         entities.append(YarboBatteryConsumptionSensor(coordinator, device))
+        entities.append(YarboPlanProgressSensor(coordinator, device))
+        entities.append(YarboRemainingAreaSensor(coordinator, device))
+        entities.append(YarboTimeRemainingSensor(coordinator, device))
+        entities.append(YarboElapsedTimeSensor(coordinator, device))
+        entities.append(YarboTotalPlanAreaSensor(coordinator, device))
+        entities.append(YarboTotalPlanTimeSensor(coordinator, device))
 
     async_add_entities(entities)
 
@@ -320,3 +327,159 @@ class YarboBatteryConsumptionSensor(
         if val is None:
             return None
         return float(val)
+
+
+class _YarboPlanFeedbackBase(
+    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
+):
+    """Shared base for sensors derived from plan_feedback."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.sn)},
+            name=self._device.name,
+            manufacturer="Yarbo",
+            model=self._device.model,
+            serial_number=self._device.sn,
+        )
+
+    def _pf(self) -> dict:
+        return self.coordinator.plan_feedback.get(self._device.sn) or {}
+
+
+class YarboPlanProgressSensor(_YarboPlanFeedbackBase):
+    """Sensor showing plan completion as a percentage."""
+
+    _attr_name = "Plan Progress"
+    _attr_icon = "mdi:progress-clock"
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_plan_progress"
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self._pf()
+        actual = pf.get("actualCleanArea")
+        total = pf.get("totalCleanArea")
+        if actual is None or not total:
+            return None
+        return round(min(float(actual) / float(total) * 100, 100), 1)
+
+
+class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
+    """Sensor showing remaining area to clean in current run."""
+
+    _attr_name = "Remaining Area"
+    _attr_icon = "mdi:texture-box"
+    _attr_native_unit_of_measurement = "m²"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_remaining_area"
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self._pf()
+        actual = pf.get("actualCleanArea")
+        total = pf.get("totalCleanArea")
+        if actual is None or total is None:
+            return None
+        return round(max(float(total) - float(actual), 0), 2)
+
+
+class YarboTimeRemainingSensor(_YarboPlanFeedbackBase):
+    """Sensor showing estimated time remaining in current plan."""
+
+    _attr_name = "Estimated Time Remaining"
+    _attr_icon = "mdi:timer-outline"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_time_remaining"
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self._pf()
+        val = pf.get("leftTime")
+        if val is None:
+            return None
+        return round(max(float(val), 0), 0)
+
+
+class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
+    """Sensor showing elapsed time in current plan run."""
+
+    _attr_name = "Elapsed Time"
+    _attr_icon = "mdi:timer"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_elapsed_time"
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self._pf()
+        val = pf.get("duration")
+        if val is None:
+            return None
+        return round(float(val), 0)
+
+
+class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
+    """Sensor showing total area of the current plan."""
+
+    _attr_name = "Total Plan Area"
+    _attr_icon = "mdi:texture-box"
+    _attr_native_unit_of_measurement = "m²"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_total_plan_area"
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self._pf()
+        val = pf.get("totalCleanArea")
+        if val is None:
+            return None
+        return round(float(val), 2)
+
+
+class YarboTotalPlanTimeSensor(_YarboPlanFeedbackBase):
+    """Sensor showing estimated total time for the current plan."""
+
+    _attr_name = "Total Plan Time"
+    _attr_icon = "mdi:timer-outline"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_total_plan_time"
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self._pf()
+        val = pf.get("totalTime")
+        if val is None:
+            return None
+        return round(float(val), 0)
