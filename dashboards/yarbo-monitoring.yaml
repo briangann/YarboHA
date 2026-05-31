@@ -19,15 +19,20 @@ views:
       - type: custom:map-card
         title: Location
         card_size: 8
+        focus_entity: device_tracker.<DEVICE_SN>_location
+        focus_follow: refocus
+        zoom: 18
         entities:
           - entity: device_tracker.<DEVICE_SN>_location
           - entity: sensor.<DEVICE_SN>_map_zones
+            focus_on_fit: false
             geojson:
               attribute: geojson
               color: '#4a9eff'
               fill_opacity: 0.2
               hide_marker: true
           - entity: sensor.<DEVICE_SN>_map_zones
+            focus_on_fit: false
             geojson:
               attribute: obstacles_geojson
               color: '#ff5050'
@@ -35,6 +40,7 @@ views:
               hide_marker: true
           # Optional: add plan path trace (enable sensor.<DEVICE_SN>_plan_path in HA first)
           # - entity: sensor.<DEVICE_SN>_plan_path
+          #   focus_on_fit: false
           #   geojson:
           #     attribute: geojson
           #     color: '#ffcc00'
