@@ -16,12 +16,16 @@ The map section requires `ha-map-card` from HACS ([github.com/nathan-gs/ha-map-c
 1. Open HACS → Frontend → search "ha-map-card" → install **Map Card** by Nathan Brodin.
 2. Reload browser cache (Ctrl+Shift+R).
 
-### 2. Enable the Plan Path entity
+### 2. Enable the Plan Path entity (optional)
 
-`sensor.<SN>_plan_path` is disabled by default.
+The plan path trace on the map is disabled by default. The map works without it. To enable:
 
 1. **Settings → Devices & Services → Yarbo BG → your device → entities**.
 2. Find **Plan Path**, click it, toggle **Enable**.
+3. Uncomment the `plan_path` block in the map card section of the generated YAML before importing.
+
+> **Warning:** If you include `sensor.<SN>_plan_path` in the map card while the entity is disabled,
+> the entire map card will fail with a blank black screen. Enable the entity first.
 
 ### 3. Generate the dashboard YAML
 
