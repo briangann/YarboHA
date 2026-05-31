@@ -33,6 +33,7 @@ Upstream sync from YarboInc monorepo (commits b009815a + 37edd28b).
 ### New
 - **WebSocket map API** — GeoJSON zone map served on demand via `yarbo/map_zones` WebSocket command instead of entity attributes, avoiding Home Assistant's 16 KB attribute limit
 - **Entity filters** — `entity_filters.py` provides `control_matches_device()` to suppress head-specific controls when the wrong attachment is fitted
+- **Monitoring dashboard** — `dashboards/yarbo-monitoring.yaml`: stat chips (online, battery, RTK signal, network), GeoJSON map via `ha-map-card` (work zones, no-go zones, plan path trace, robot position), plan progress, plan details, time/area stats, fault indicators. See `dashboards/README.md` for setup.
 
 ### Changed
 - **Config-driven sensor and binary sensor** — all ~20 individual sensor classes replaced by `YarboConfigSensor` / `YarboConfigBinarySensor` driven by SDK field definitions; adds `battery_capacity` rescaling (firmware caps at 95%, rescaled to 100%), `charging_power` computed from voltage × current, and new `custom_extractor` variants
