@@ -21,7 +21,9 @@ views:
         card_size: 8
         focus_entity: device_tracker.<DEVICE_SN>_location
         focus_follow: refocus
-        zoom: 18
+        zoom: 20
+        tile_layer_options:
+          maxZoom: 20
         entities:
           - entity: device_tracker.<DEVICE_SN>_location
           - entity: sensor.<DEVICE_SN>_map_zones
