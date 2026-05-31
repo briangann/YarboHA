@@ -2,4 +2,16 @@ title: Yarbo Monitoring
 views:
   - title: Overview
     path: yarbo-overview
-    cards: []
+    cards:
+
+      - type: glance
+        title: Device Status
+        entities:
+          - entity: binary_sensor.<DEVICE_SN>_online
+            name: Online
+          - entity: sensor.<DEVICE_SN>_battery
+            name: Battery
+          - entity: sensor.<DEVICE_SN>_rtk_signal
+            name: RTK Signal
+          - entity: sensor.<DEVICE_SN>_network
+            name: Network
