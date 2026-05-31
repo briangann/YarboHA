@@ -2,111 +2,111 @@ title: Yarbo Monitoring
 views:
   - title: Overview
     path: yarbo-overview
+    type: custom:grid-layout
+    layout:
+      grid-template-columns: 2fr 1fr
     cards:
 
-      - type: horizontal-stack
+      - type: custom:map-card
+        title: Location
+        card_size: 8
+        focus_entity: device_tracker.<DEVICE_SN>_location
+        focus_follow: refocus
+        zoom: 20
+        tile_layer_url: https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}
+        tile_layer_attribution: "Tiles &copy; Esri &mdash; Source: Esri, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
+        tile_layer_options:
+          maxZoom: 20
+        entities:
+          - entity: device_tracker.<DEVICE_SN>_location
+            display: icon
+            icon: mdi:robot-mower
+            size: 24
+            color: '#ff6b35'
+          - entity: sensor.<DEVICE_SN>_map_zones
+            focus_on_fit: false
+            geojson:
+              attribute: geojson
+              color: '#4a9eff'
+              fill_opacity: 0.2
+              hide_marker: true
+          - entity: sensor.<DEVICE_SN>_map_zones
+            focus_on_fit: false
+            geojson:
+              attribute: obstacles_geojson
+              color: '#ff5050'
+              fill_opacity: 0.3
+              hide_marker: true
+          # Optional: add plan path trace (enable sensor.<DEVICE_SN>_plan_path in HA first)
+          # - entity: sensor.<DEVICE_SN>_plan_path
+          #   focus_on_fit: false
+          #   geojson:
+          #     attribute: geojson
+          #     color: '#ffcc00'
+          #     fill_opacity: 0.1
+          #     hide_marker: true
+
+      - type: vertical-stack
         cards:
 
-          - type: custom:map-card
-            title: Location
-            card_size: 8
-            focus_entity: device_tracker.<DEVICE_SN>_location
-            focus_follow: refocus
-            zoom: 20
-            tile_layer_url: https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}
-            tile_layer_attribution: "Tiles &copy; Esri &mdash; Source: Esri, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
-            tile_layer_options:
-              maxZoom: 20
+          - type: glance
+            title: Device Status
             entities:
-              - entity: device_tracker.<DEVICE_SN>_location
-                display: icon
-                icon: mdi:robot-mower
-                size: 24
-                color: '#ff6b35'
-              - entity: sensor.<DEVICE_SN>_map_zones
-                focus_on_fit: false
-                geojson:
-                  attribute: geojson
-                  color: '#4a9eff'
-                  fill_opacity: 0.2
-                  hide_marker: true
-              - entity: sensor.<DEVICE_SN>_map_zones
-                focus_on_fit: false
-                geojson:
-                  attribute: obstacles_geojson
-                  color: '#ff5050'
-                  fill_opacity: 0.3
-                  hide_marker: true
-              # Optional: add plan path trace (enable sensor.<DEVICE_SN>_plan_path in HA first)
-              # - entity: sensor.<DEVICE_SN>_plan_path
-              #   focus_on_fit: false
-              #   geojson:
-              #     attribute: geojson
-              #     color: '#ffcc00'
-              #     fill_opacity: 0.1
-              #     hide_marker: true
+              - entity: binary_sensor.<DEVICE_SN>_online
+                name: Online
+              - entity: sensor.<DEVICE_SN>_battery
+                name: Battery
+              - entity: sensor.<DEVICE_SN>_rtk_signal
+                name: RTK Signal
+              - entity: sensor.<DEVICE_SN>_network
+                name: Network
 
-          - type: vertical-stack
-            cards:
+          - type: entities
+            title: Plan Details
+            entities:
+              - entity: sensor.<DEVICE_SN>_current_plan
+                name: Current Plan
+              - entity: sensor.<DEVICE_SN>_auto_plan_status
+                name: Plan Status
+              - entity: sensor.<DEVICE_SN>_auto_plan_pause_status
+                name: Pause Status
+              - entity: sensor.<DEVICE_SN>_plan_progress
+                name: Progress
+              - entity: sensor.<DEVICE_SN>_clean_area
+                name: Area Done
+              - entity: sensor.<DEVICE_SN>_remaining_area
+                name: Remaining
+              - entity: sensor.<DEVICE_SN>_estimated_time_remaining
+                name: Time Remaining
 
-              - type: glance
-                title: Device Status
-                entities:
-                  - entity: binary_sensor.<DEVICE_SN>_online
-                    name: Online
-                  - entity: sensor.<DEVICE_SN>_battery
-                    name: Battery
-                  - entity: sensor.<DEVICE_SN>_rtk_signal
-                    name: RTK Signal
-                  - entity: sensor.<DEVICE_SN>_network
-                    name: Network
+          - type: glance
+            title: Plan Stats
+            entities:
+              - entity: sensor.<DEVICE_SN>_elapsed_time
+                name: Elapsed
+              - entity: sensor.<DEVICE_SN>_total_plan_time
+                name: Total Time
+              - entity: sensor.<DEVICE_SN>_total_plan_area
+                name: Total Area
+              - entity: sensor.<DEVICE_SN>_battery_consumption
+                name: Battery Used
 
-              - type: entities
-                title: Plan Details
-                entities:
-                  - entity: sensor.<DEVICE_SN>_current_plan
-                    name: Current Plan
-                  - entity: sensor.<DEVICE_SN>_auto_plan_status
-                    name: Plan Status
-                  - entity: sensor.<DEVICE_SN>_auto_plan_pause_status
-                    name: Pause Status
-                  - entity: sensor.<DEVICE_SN>_plan_progress
-                    name: Progress
-                  - entity: sensor.<DEVICE_SN>_clean_area
-                    name: Area Done
-                  - entity: sensor.<DEVICE_SN>_remaining_area
-                    name: Remaining
-                  - entity: sensor.<DEVICE_SN>_estimated_time_remaining
-                    name: Time Remaining
-
-              - type: glance
-                title: Plan Stats
-                entities:
-                  - entity: sensor.<DEVICE_SN>_elapsed_time
-                    name: Elapsed
-                  - entity: sensor.<DEVICE_SN>_total_plan_time
-                    name: Total Time
-                  - entity: sensor.<DEVICE_SN>_total_plan_area
-                    name: Total Area
-                  - entity: sensor.<DEVICE_SN>_battery_consumption
-                    name: Battery Used
-
-              - type: entities
-                title: Faults
-                entities:
-                  - entity: sensor.<DEVICE_SN>_error_code
-                    name: Error Code
-                  - entity: binary_sensor.<DEVICE_SN>_impact
-                    name: Impact
-                  - entity: binary_sensor.<DEVICE_SN>_left_motor_fault
-                    name: Left Motor
-                  - entity: binary_sensor.<DEVICE_SN>_right_motor_fault
-                    name: Right Motor
-                  - entity: binary_sensor.<DEVICE_SN>_left_wheel_fault
-                    name: Left Wheel
-                  - entity: binary_sensor.<DEVICE_SN>_right_wheel_fault
-                    name: Right Wheel
-                  - entity: binary_sensor.<DEVICE_SN>_radar_fault
-                    name: Radar
-                  - entity: binary_sensor.<DEVICE_SN>_power_fault
-                    name: Power
+          - type: entities
+            title: Faults
+            entities:
+              - entity: sensor.<DEVICE_SN>_error_code
+                name: Error Code
+              - entity: binary_sensor.<DEVICE_SN>_impact
+                name: Impact
+              - entity: binary_sensor.<DEVICE_SN>_left_motor_fault
+                name: Left Motor
+              - entity: binary_sensor.<DEVICE_SN>_right_motor_fault
+                name: Right Motor
+              - entity: binary_sensor.<DEVICE_SN>_left_wheel_fault
+                name: Left Wheel
+              - entity: binary_sensor.<DEVICE_SN>_right_wheel_fault
+                name: Right Wheel
+              - entity: binary_sensor.<DEVICE_SN>_radar_fault
+                name: Radar
+              - entity: binary_sensor.<DEVICE_SN>_power_fault
+                name: Power

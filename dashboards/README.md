@@ -9,12 +9,17 @@ Single-device monitoring dashboard for the `yarbo_bg` Home Assistant integration
 
 ## Setup
 
-### 1. Install ha-map-card (HACS)
+### 1. Install HACS frontend cards
 
-The map section requires `ha-map-card` from HACS ([github.com/nathan-gs/ha-map-card](https://github.com/nathan-gs/ha-map-card)).
+Two HACS frontend cards are required:
 
+**ha-map-card** ([github.com/nathan-gs/ha-map-card](https://github.com/nathan-gs/ha-map-card)) — satellite map with GeoJSON overlay:
 1. Open HACS → Frontend → search "ha-map-card" → install **Map Card** by Nathan Brodin.
-2. Reload browser cache (Ctrl+Shift+R).
+
+**layout-card** ([github.com/thomasloven/lovelace-layout-card](https://github.com/thomasloven/lovelace-layout-card)) — CSS grid layout for the two-column view:
+1. Open HACS → Frontend → search "layout-card" → install **layout-card** by Thomas Lovén.
+
+After installing both, reload browser cache (Ctrl+Shift+R).
 
 ### 2. Enable the Plan Path entity (optional)
 
