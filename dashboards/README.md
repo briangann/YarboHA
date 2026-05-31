@@ -9,11 +9,11 @@ Single-device monitoring dashboard for the `yarbo_bg` Home Assistant integration
 
 ## Setup
 
-### 1. Install lovelace-map-card (HACS)
+### 1. Install ha-map-card (HACS)
 
-The map section requires `lovelace-map-card` from HACS.
+The map section requires `ha-map-card` from HACS ([github.com/nathan-gs/ha-map-card](https://github.com/nathan-gs/ha-map-card)).
 
-1. Open HACS → Frontend → search "map card" → install **Map Card** by Nathan Brodin.
+1. Open HACS → Frontend → search "ha-map-card" → install **Map Card** by Nathan Brodin.
 2. Reload browser cache (Ctrl+Shift+R).
 
 ### 2. Enable the Plan Path entity
