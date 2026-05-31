@@ -15,3 +15,26 @@ views:
             name: RTK Signal
           - entity: sensor.<DEVICE_SN>_network
             name: Network
+
+      - type: custom:map-card
+        title: Location
+        entities:
+          - entity: device_tracker.<DEVICE_SN>_location
+          - entity: sensor.<DEVICE_SN>_map_zones
+            geojson:
+              attribute: geojson
+              color: '#4a9eff'
+              fill_opacity: 0.2
+              hide_marker: true
+          - entity: sensor.<DEVICE_SN>_map_zones
+            geojson:
+              attribute: obstacles_geojson
+              color: '#ff5050'
+              fill_opacity: 0.3
+              hide_marker: true
+          - entity: sensor.<DEVICE_SN>_plan_path
+            geojson:
+              attribute: geojson
+              color: '#ffcc00'
+              fill_opacity: 0.1
+              hide_marker: true
