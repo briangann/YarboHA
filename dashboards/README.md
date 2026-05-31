@@ -23,15 +23,28 @@ The map section requires `ha-map-card` from HACS ([github.com/nathan-gs/ha-map-c
 1. **Settings → Devices & Services → Yarbo BG → your device → entities**.
 2. Find **Plan Path**, click it, toggle **Enable**.
 
-### 3. Import the dashboard
+### 3. Generate the dashboard YAML
 
-1. Open the contents of `yarbo-monitoring.yaml` in a text editor. Find-replace every occurrence of
-   `<DEVICE_SN>` with your device serial number (e.g. `YB123456`).
-2. In HA: **Settings → Dashboards → Add Dashboard** (the + button). Give it a title (e.g. "Yarbo")
+Run `generate.py` from the repo root to produce a ready-to-paste YAML file:
+
+```bash
+python3 dashboards/generate.py YB123456
+```
+
+Replace `YB123456` with your actual serial number. The output is printed to stdout — pipe it to a
+file if you prefer:
+
+```bash
+python3 dashboards/generate.py YB123456 -o my-yarbo-dashboard.yaml
+```
+
+### 4. Import into Home Assistant
+
+1. In HA: **Settings → Dashboards → Add Dashboard** (the + button). Give it a title (e.g. "Yarbo")
    and a URL path (e.g. `yarbo`). Click **Create**.
-3. Open the new dashboard, then click the **pencil icon** (Edit dashboard) in the top-right.
-4. Click the **three-dot menu → Raw configuration editor**.
-5. Select all the existing content and replace it with the edited YAML from step 1. Click **Save**.
+2. Open the new dashboard, then click the **pencil icon** (Edit dashboard) in the top-right.
+3. Click the **three-dot menu → Raw configuration editor**.
+4. Select all the existing content, paste the generated YAML from step 3, and click **Save**.
 
 ## Entity IDs
 
