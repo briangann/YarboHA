@@ -73,3 +73,23 @@ views:
             name: Total Area
           - entity: sensor.<DEVICE_SN>_battery_consumption
             name: Battery Used
+
+      - type: entities
+        title: Faults
+        entities:
+          - entity: sensor.<DEVICE_SN>_error_code
+            name: Error Code
+          - entity: binary_sensor.<DEVICE_SN>_impact
+            name: Impact
+          - entity: binary_sensor.<DEVICE_SN>_left_motor_fault
+            name: Left Motor
+          - entity: binary_sensor.<DEVICE_SN>_right_motor_fault
+            name: Right Motor
+          - entity: binary_sensor.<DEVICE_SN>_left_wheel_fault
+            name: Left Wheel
+          - entity: binary_sensor.<DEVICE_SN>_right_wheel_fault
+            name: Right Wheel
+          - entity: binary_sensor.<DEVICE_SN>_radar_fault
+            name: Radar
+          - entity: binary_sensor.<DEVICE_SN>_power_fault
+            name: Power

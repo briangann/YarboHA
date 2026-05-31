@@ -28,6 +28,13 @@ This changelog follows the [Keep a Changelog](https://keepachangelog.com/en/1.0.
 
 ## [Unreleased]
 
+### Added
+- `dashboards/yarbo-monitoring.yaml` — single-device monitoring Lovelace dashboard: stat chips (online,
+  battery, RTK signal, network), GeoJSON map via `ha-map-card` (work zones, no-go zones, plan path trace,
+  robot position), plan progress gauge, plan details, time/area stats, and fault indicators.
+- `dashboards/README.md` — setup instructions: install `ha-map-card` via HACS, enable the `plan_path`
+  entity, import the dashboard, replace `<DEVICE_SN>` placeholder.
+
 ### Documentation
 - **AGENTS.md accuracy fixes** — corrected three inaccurate claims: `device_tracker.py` uses `_maybe_write_state()` (not `recorder_excluded_attributes`) to suppress GPS spam; `button.py` has 9 button classes (not 2); `sensor.py` has 22 sensor classes grouped by base class (not 8).
 

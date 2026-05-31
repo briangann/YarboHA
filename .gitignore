@@ -41,3 +41,6 @@ desktop.ini
 
 # MCP server logs
 mcp_*.log
+
+# Brainstorming sessions
+.superpowers/
