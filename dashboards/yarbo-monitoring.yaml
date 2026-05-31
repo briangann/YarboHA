@@ -18,6 +18,7 @@ views:
 
       - type: custom:map-card
         title: Location
+        card_size: 8
         entities:
           - entity: device_tracker.<DEVICE_SN>_location
           - entity: sensor.<DEVICE_SN>_map_zones
