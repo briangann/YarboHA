@@ -28,6 +28,10 @@ views:
           maxZoom: 20
         entities:
           - entity: device_tracker.<DEVICE_SN>_location
+            display: icon
+            icon: mdi:robot-mower
+            size: 24
+            color: '#ff6b35'
           - entity: sensor.<DEVICE_SN>_map_zones
             focus_on_fit: false
             geojson:
