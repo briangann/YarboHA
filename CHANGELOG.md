@@ -2,6 +2,16 @@
 
 What's new in each release of Yarbo BG.
 
+This changelog follows the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) format and adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+---
+
+## [Unreleased]
+
+### Documentation
+- **AGENTS.md accuracy fixes** — corrected three inaccurate claims: `device_tracker.py` uses `_maybe_write_state()` (not `recorder_excluded_attributes`) to suppress GPS spam; `button.py` has 9 button classes (not 2); `sensor.py` has 22 sensor classes grouped by base class (not 8).
+
 ---
 
 ## [0.4.11] - 2026-05-30
