@@ -24,7 +24,7 @@ def main() -> None:
         print(f"error: {template} not found", file=sys.stderr)
         sys.exit(1)
 
-    yaml = template.read_text().replace("<DEVICE_SN>", args.serial_number)
+    yaml = template.read_text().replace("<DEVICE_SN>", args.serial_number.lower())
 
     if args.output:
         pathlib.Path(args.output).write_text(yaml)
