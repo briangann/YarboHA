@@ -33,12 +33,13 @@ views:
               color: '#ff5050'
               fill_opacity: 0.3
               hide_marker: true
-          - entity: sensor.<DEVICE_SN>_plan_path
-            geojson:
-              attribute: geojson
-              color: '#ffcc00'
-              fill_opacity: 0.1
-              hide_marker: true
+          # Optional: add plan path trace (enable sensor.<DEVICE_SN>_plan_path in HA first)
+          # - entity: sensor.<DEVICE_SN>_plan_path
+          #   geojson:
+          #     attribute: geojson
+          #     color: '#ffcc00'
+          #     fill_opacity: 0.1
+          #     hide_marker: true
 
       - type: entities
         title: Plan Details
