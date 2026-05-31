@@ -22,6 +22,8 @@ views:
         focus_entity: device_tracker.<DEVICE_SN>_location
         focus_follow: refocus
         zoom: 20
+        tile_layer_url: https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}
+        tile_layer_attribution: "Tiles &copy; Esri &mdash; Source: Esri, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community"
         tile_layer_options:
           maxZoom: 20
         entities:
