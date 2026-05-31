@@ -38,3 +38,26 @@ views:
               color: '#ffcc00'
               fill_opacity: 0.1
               hide_marker: true
+
+      - type: gauge
+        title: Plan Progress
+        entity: sensor.<DEVICE_SN>_plan_progress
+        min: 0
+        max: 100
+        unit: "%"
+
+      - type: entities
+        title: Plan Details
+        entities:
+          - entity: sensor.<DEVICE_SN>_current_plan
+            name: Current Plan
+          - entity: sensor.<DEVICE_SN>_auto_plan_status
+            name: Plan Status
+          - entity: sensor.<DEVICE_SN>_auto_plan_pause_status
+            name: Pause Status
+          - entity: sensor.<DEVICE_SN>_clean_area
+            name: Area Done
+          - entity: sensor.<DEVICE_SN>_remaining_area
+            name: Remaining
+          - entity: sensor.<DEVICE_SN>_estimated_time_remaining
+            name: Time Remaining
