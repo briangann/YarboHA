@@ -61,3 +61,15 @@ views:
             name: Remaining
           - entity: sensor.<DEVICE_SN>_estimated_time_remaining
             name: Time Remaining
+
+      - type: glance
+        title: Plan Stats
+        entities:
+          - entity: sensor.<DEVICE_SN>_elapsed_time
+            name: Elapsed
+          - entity: sensor.<DEVICE_SN>_total_plan_time
+            name: Total Time
+          - entity: sensor.<DEVICE_SN>_total_plan_area
+            name: Total Area
+          - entity: sensor.<DEVICE_SN>_battery_consumption
+            name: Battery Used
