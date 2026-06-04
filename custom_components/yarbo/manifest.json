@@ -1,11 +1,11 @@
 {
-  "domain": "yarbo_bg",
-  "name": "Yarbo BG",
+  "domain": "yarbo",
+  "name": "Yarbo",
   "codeowners": ["@nicebay"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/YarboInc/YarboHA",
   "iot_class": "cloud_push",
   "requirements": ["yarbo-data-sdk>=0.2.0"],
-  "version": "0.4.13"
+  "version": "0.5.0"
 }

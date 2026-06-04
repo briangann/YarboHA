@@ -1,0 +1,84 @@
+2026-06-04 19:15:11 | INFO     | mcp_docker.utils.logger:setup_logger:72 - Logger initialized with level: INFO
+2026-06-04 19:15:11 | INFO     | mcp_docker.utils.logger:setup_logger:73 - JSON logging: disabled
+2026-06-04 19:15:11 | INFO     | mcp_docker.utils.logger:setup_logger:75 - Logging to file: mcp_docker.log
+2026-06-04 19:15:11 | INFO     | mcp_docker.__main__:main:156 - ============================================================
+2026-06-04 19:15:11 | INFO     | mcp_docker.__main__:main:157 - MCP Docker Server v1.2.8 (FastMCP 2.0)
+2026-06-04 19:15:11 | INFO     | mcp_docker.__main__:main:158 - ============================================================
+2026-06-04 19:15:11 | INFO     | mcp_docker.__main__:main:160 - Config: docker_url=unix:///var/run/docker.sock, safety_destructive=False, oauth_enabled=False, rate_limit_enabled=True
+2026-06-04 19:15:11 | INFO     | mcp_docker.__main__:main:168 - Initializing FastMCP 2.0 server
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.server:__init__:52 - Initializing FastMCP Docker server
+2026-06-04 19:15:11 | INFO     | mcp_docker.middleware.auth:__init__:56 - OAuth authentication disabled
+2026-06-04 19:15:11 | INFO     | mcp_docker.middleware.auth:__init__:64 - IP allowlist disabled - all IPs allowed
+2026-06-04 19:15:11 | INFO     | mcp_docker.services.rate_limiter:__init__:206 - Pre-auth rate limiting enabled: 10 RPM per IP
+2026-06-04 19:15:11 | INFO     | mcp_docker.services.rate_limiter:__init__:77 - Rate limiting enabled: 60 RPM (global), 3 concurrent (global)
+2026-06-04 19:15:11 | INFO     | mcp_docker.services.audit:__init__:141 - Audit logging enabled: mcp_audit.log
+2026-06-04 19:15:11 | INFO     | mcp_docker.middleware.debug_logging:__init__:54 - DebugLoggingMiddleware initialized (debug logging disabled)
+2026-06-04 19:15:11 | INFO     | mcp_docker.middleware.error_handler:__init__:45 - ErrorHandlerMiddleware: Initialized (errors will be sanitized)
+2026-06-04 19:15:11 | INFO     | mcp_docker.middleware.safety:__init__:21 - Initialized SafetyMiddleware
+2026-06-04 19:15:11 | INFO     | mcp_docker.middleware.rate_limit:__init__:154 - Initialized PreAuthRateLimitMiddleware (enabled=True, rpm=10 per IP)
+2026-06-04 19:15:11 | INFO     | mcp_docker.middleware.rate_limit:__init__:50 - Initialized RateLimitMiddleware (enabled=True, rpm=60)
+2026-06-04 19:15:11 | INFO     | mcp_docker.middleware.audit:__init__:50 - Initialized AuditMiddleware (enabled=True)
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.server:__init__:119 - Attaching middleware to FastMCP app
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.server:__init__:130 - Middleware attached successfully (debug, error_handler, audit, pre_auth_rate_limit, auth, safety, rate_limit, response_limiting)
+2026-06-04 19:15:11 | INFO     | mcp_docker.tools.registration:register_all_tools:55 - Registering FastMCP tools...
+2026-06-04 19:15:11 | INFO     | mcp_docker.tools.registration:register_all_tools:84 - Successfully registered 33 FastMCP tools across 6 categories
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.resources:register_all_resources:197 - Registering FastMCP resources...
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.resources:register_all_resources:219 - Successfully registered 2 FastMCP resources
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.prompts:register_all_prompts:365 - Registering FastMCP prompts...
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.prompts:register_all_prompts:390 - Successfully registered 5 FastMCP prompts
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.server:__init__:160 - Registered 33 tools, 2 resources, 5 prompts across FastMCP
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.server:__init__:164 - Security: rate_limit=True, audit=True
+2026-06-04 19:15:11 | INFO     | mcp_docker.__main__:main:171 - FastMCP Docker server initialized
+2026-06-04 19:15:11 | INFO     | mcp_docker.__main__:run_stdio:52 - Starting FastMCP server with stdio transport
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.server:start:179 - Starting FastMCP Docker server
+2026-06-04 19:15:11 | INFO     | mcp_docker.docker.client:_connect:56 - Connecting to Docker daemon at unix:///var/run/docker.sock
+2026-06-04 19:15:11 | SUCCESS  | mcp_docker.docker.client:_connect:102 - Successfully connected to Docker daemon
+2026-06-04 19:15:11 | INFO     | mcp_docker.server.server:start:186 - Docker daemon is healthy
+2026-06-04 19:15:11 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: initialize
+2026-06-04 19:15:11 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: tools/list
+2026-06-04 19:15:11 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: mcp_protocol
+2026-06-04 19:15:11 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: mcp_protocol
+2026-06-04 19:15:11 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: mcp_protocol
+2026-06-04 19:15:15 | INFO     | mcp_docker.server.server:stop:194 - Stopping FastMCP Docker server
+2026-06-04 19:15:15 | INFO     | mcp_docker.__main__:_shutdown:37 - MCP server shutdown complete
+2026-06-04 19:15:25 | INFO     | mcp_docker.utils.logger:setup_logger:72 - Logger initialized with level: INFO
+2026-06-04 19:15:25 | INFO     | mcp_docker.utils.logger:setup_logger:73 - JSON logging: disabled
+2026-06-04 19:15:25 | INFO     | mcp_docker.utils.logger:setup_logger:75 - Logging to file: mcp_docker.log
+2026-06-04 19:15:25 | INFO     | mcp_docker.__main__:main:156 - ============================================================
+2026-06-04 19:15:25 | INFO     | mcp_docker.__main__:main:157 - MCP Docker Server v1.2.8 (FastMCP 2.0)
+2026-06-04 19:15:25 | INFO     | mcp_docker.__main__:main:158 - ============================================================
+2026-06-04 19:15:25 | INFO     | mcp_docker.__main__:main:160 - Config: docker_url=unix:///var/run/docker.sock, safety_destructive=False, oauth_enabled=False, rate_limit_enabled=True
+2026-06-04 19:15:25 | INFO     | mcp_docker.__main__:main:168 - Initializing FastMCP 2.0 server
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.server:__init__:52 - Initializing FastMCP Docker server
+2026-06-04 19:15:25 | INFO     | mcp_docker.middleware.auth:__init__:56 - OAuth authentication disabled
+2026-06-04 19:15:25 | INFO     | mcp_docker.middleware.auth:__init__:64 - IP allowlist disabled - all IPs allowed
+2026-06-04 19:15:25 | INFO     | mcp_docker.services.rate_limiter:__init__:206 - Pre-auth rate limiting enabled: 10 RPM per IP
+2026-06-04 19:15:25 | INFO     | mcp_docker.services.rate_limiter:__init__:77 - Rate limiting enabled: 60 RPM (global), 3 concurrent (global)
+2026-06-04 19:15:25 | INFO     | mcp_docker.services.audit:__init__:141 - Audit logging enabled: mcp_audit.log
+2026-06-04 19:15:25 | INFO     | mcp_docker.middleware.debug_logging:__init__:54 - DebugLoggingMiddleware initialized (debug logging disabled)
+2026-06-04 19:15:25 | INFO     | mcp_docker.middleware.error_handler:__init__:45 - ErrorHandlerMiddleware: Initialized (errors will be sanitized)
+2026-06-04 19:15:25 | INFO     | mcp_docker.middleware.safety:__init__:21 - Initialized SafetyMiddleware
+2026-06-04 19:15:25 | INFO     | mcp_docker.middleware.rate_limit:__init__:154 - Initialized PreAuthRateLimitMiddleware (enabled=True, rpm=10 per IP)
+2026-06-04 19:15:25 | INFO     | mcp_docker.middleware.rate_limit:__init__:50 - Initialized RateLimitMiddleware (enabled=True, rpm=60)
+2026-06-04 19:15:25 | INFO     | mcp_docker.middleware.audit:__init__:50 - Initialized AuditMiddleware (enabled=True)
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.server:__init__:119 - Attaching middleware to FastMCP app
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.server:__init__:130 - Middleware attached successfully (debug, error_handler, audit, pre_auth_rate_limit, auth, safety, rate_limit, response_limiting)
+2026-06-04 19:15:25 | INFO     | mcp_docker.tools.registration:register_all_tools:55 - Registering FastMCP tools...
+2026-06-04 19:15:25 | INFO     | mcp_docker.tools.registration:register_all_tools:84 - Successfully registered 33 FastMCP tools across 6 categories
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.resources:register_all_resources:197 - Registering FastMCP resources...
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.resources:register_all_resources:219 - Successfully registered 2 FastMCP resources
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.prompts:register_all_prompts:365 - Registering FastMCP prompts...
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.prompts:register_all_prompts:390 - Successfully registered 5 FastMCP prompts
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.server:__init__:160 - Registered 33 tools, 2 resources, 5 prompts across FastMCP
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.server:__init__:164 - Security: rate_limit=True, audit=True
+2026-06-04 19:15:25 | INFO     | mcp_docker.__main__:main:171 - FastMCP Docker server initialized
+2026-06-04 19:15:25 | INFO     | mcp_docker.__main__:run_stdio:52 - Starting FastMCP server with stdio transport
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.server:start:179 - Starting FastMCP Docker server
+2026-06-04 19:15:25 | INFO     | mcp_docker.docker.client:_connect:56 - Connecting to Docker daemon at unix:///var/run/docker.sock
+2026-06-04 19:15:25 | SUCCESS  | mcp_docker.docker.client:_connect:102 - Successfully connected to Docker daemon
+2026-06-04 19:15:25 | INFO     | mcp_docker.server.server:start:186 - Docker daemon is healthy
+2026-06-04 19:15:25 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: initialize
+2026-06-04 19:15:25 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: tools/list
+2026-06-04 19:15:25 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: mcp_protocol
+2026-06-04 19:15:25 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: mcp_protocol
+2026-06-04 19:15:25 | INFO     | mcp_docker.services.audit:log_tool_call:184 - Tool call: mcp_protocol
