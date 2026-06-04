@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  COMPONENT: custom_components/yarbo_bg
+  COMPONENT: custom_components/yarbo
   HA_BRANCH: "2026.5.4"
   HA_CLONE: /tmp/ha-core
 

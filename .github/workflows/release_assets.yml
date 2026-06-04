@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 env:
-  COMPONENT: yarbo_bg
+  COMPONENT: yarbo
 
 jobs:
   artifacts:

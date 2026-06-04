@@ -1,6 +1,25 @@
 # Changelog
 
-What's new in each release of Yarbo BG.
+What's new in each release of Yarbo.
+
+---
+
+## [0.5.0] - 2026-06-04
+
+Domain reverted from `yarbo_bg` back to `yarbo` to align with upstream. Integration name is now **Yarbo**.
+
+### ⚠️ Breaking Change — Entity ID Migration Required
+Entity IDs change from `yarbo_bg.*` to `yarbo.*`. After updating:
+1. Remove the Yarbo integration (**Settings → Devices & Services → Yarbo BG → Delete**).
+2. Restart Home Assistant.
+3. Re-add the integration (**Add Integration → Yarbo**) and reconfigure credentials + devices.
+4. Update any automations, scripts, or dashboards that reference `yarbo_bg.*` entity IDs.
+
+### Changed
+- Integration domain: `yarbo_bg` → `yarbo`
+- Integration display name: **Yarbo BG** → **Yarbo**
+- Service: `yarbo_bg.set_nogozone_enabled` → `yarbo.set_nogozone_enabled`
+- Package path: `custom_components/yarbo_bg/` → `custom_components/yarbo/`
 
 ---
 

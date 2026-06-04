@@ -8,7 +8,7 @@ set_nogozone_enabled:
       required: true
       selector:
         device:
-          integration: yarbo_bg
+          integration: yarbo
     zone_id:
       name: Zone ID
       description: The ID of the no-go zone (integer or string).

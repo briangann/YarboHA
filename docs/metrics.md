@@ -1,4 +1,4 @@
-# Yarbo BG — Entity & Metric Reference
+# Yarbo — Entity & Metric Reference
 
 All data arrives via MQTT push from the device. There is no polling —
 entities update only when the device sends a new message. MQTT field
@@ -332,7 +332,7 @@ paths use dot notation into the raw device payload.
 
 ## Service
 
-### `yarbo_bg.set_nogozone_enabled`
+### `yarbo.set_nogozone_enabled`
 
 Enable or disable an individual no-go zone on the device map.
 
