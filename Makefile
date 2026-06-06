@@ -25,18 +25,18 @@ setup:
 	.venv/bin/pre-commit install
 
 lint:
-	.venv/bin/pyright custom_components/yarbo_bg/
+	.venv/bin/pyright custom_components/yarbo/
 
 test:
 	$(PYTHON) -m pytest tests/ -v
 
 coverage:
-	$(PYTHON) -m pytest tests/ --cov=custom_components/yarbo_bg --cov-report=term-missing
+	$(PYTHON) -m pytest tests/ --cov=custom_components/yarbo --cov-report=term-missing
 
 bandit:
-	$(PYTHON) -m bandit -c pyproject.toml -r custom_components/yarbo_bg/
+	$(PYTHON) -m bandit -c pyproject.toml -r custom_components/yarbo/
 
 import-check:
-	$(PYTHON) -m compileall custom_components/yarbo_bg/ -q
+	$(PYTHON) -m compileall custom_components/yarbo/ -q
 
 check: lint test coverage bandit import-check

@@ -38,3 +38,6 @@ pyrightconfig.json
 # Editors
 .idea/
 desktop.ini
+
+# MCP server logs
+mcp_*.log

@@ -8,7 +8,7 @@ permissions:
   contents: write
 
 env:
-  COMPONENT: yarbo_bg
+  COMPONENT: yarbo
 
 jobs:
   artifacts:
@@ -16,12 +16,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: "Check out repository"
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: "Zip component dir"
         run: zip -r ${{ env.COMPONENT }}-${{ github.ref_name }}.zip custom_components/${{ env.COMPONENT }}
 
       - name: "Upload release asset"
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
           files: ${{ env.COMPONENT }}-${{ github.ref_name }}.zip
