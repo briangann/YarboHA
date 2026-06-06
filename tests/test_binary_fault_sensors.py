@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from custom_components.yarbo_bg.binary_sensor import (
+from custom_components.yarbo.binary_sensor import (
     YarboImpactBinarySensor,
     YarboLeftMotorFaultSensor,
     YarboLeftWheelFaultSensor,

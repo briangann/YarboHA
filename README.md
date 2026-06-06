@@ -43,12 +43,12 @@ Home Assistant custom integration for Yarbo robot devices. Monitor and control y
 
 ### Manual
 
-1. Copy `custom_components/yarbo_bg/` to your HA `config/custom_components/` directory
+1. Copy `custom_components/yarbo/` to your HA `config/custom_components/` directory
 2. Restart Home Assistant
 
 ## Configuration
 
-1. **Settings** > **Devices & Services** > **Add Integration** > **Yarbo BG**
+1. **Settings** > **Devices & Services** > **Add Integration** > **Yarbo**
 2. Enter your Yarbo account email and password
 3. Select which devices to add
 

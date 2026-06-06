@@ -4,7 +4,7 @@ import pytest
 
 from unittest.mock import MagicMock
 
-from custom_components.yarbo_bg.sensor import (
+from custom_components.yarbo.sensor import (
     YarboChuteSensor,
     YarboGyroRollSensor,
     YarboGyroPitchSensor,
