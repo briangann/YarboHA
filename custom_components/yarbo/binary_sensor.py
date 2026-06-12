@@ -129,6 +129,16 @@ class YarboConfigBinarySensor(
             if isinstance(raw, (int, float)):
                 return raw > 0
             return None
+        if self._field_def.custom_extractor == "nonzero_threshold":
+            # Value 0 means normal/off; any non-zero value means active.
+            if isinstance(raw, (int, float)):
+                return raw != 0
+            return None
+        if self._field_def.custom_extractor == "planning_problem":
+            try:
+                return int(raw) < 0
+            except (TypeError, ValueError):
+                return None
         if self._field_def.value_map:
             mapped = self._field_def.value_map.get(str(raw))
             if mapped is None:

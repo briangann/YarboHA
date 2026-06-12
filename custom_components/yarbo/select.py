@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
+from .entity_filters import control_matches_device
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +37,9 @@ async def async_setup_entry(
             get_control_field_definitions, device.type_id
         )
         for ctrl_def in ctrl_defs:
-            if ctrl_def.entity_type == "select":
+            if ctrl_def.entity_type == "select" and control_matches_device(
+                coordinator, device, ctrl_def
+            ):
                 entities.append(YarboConfigSelect(coordinator, device, ctrl_def))
 
         # Hardcoded Plan Select (dynamic options from plan list)

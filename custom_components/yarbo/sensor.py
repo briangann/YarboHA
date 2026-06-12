@@ -17,7 +17,18 @@ from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
 
 # Sensor device_classes that represent a numeric measurement
-MEASUREMENT_CLASSES = {"battery", "temperature", "humidity", "distance", "pressure"}
+MEASUREMENT_CLASSES = {
+    "battery",
+    "current",
+    "distance",
+    "duration",
+    "humidity",
+    "power",
+    "pressure",
+    "signal_strength",
+    "temperature",
+    "voltage",
+}
 
 # on_going_planning status code → display text
 PLANNING_STATUS_MAP: dict[int, str] = {
@@ -137,6 +148,13 @@ class YarboConfigSensor(
         if field_def.icon:
             self._attr_icon = field_def.icon
 
+        # HA rejects non-numeric states (e.g. firmware sending "") on sensors
+        # whose device_class/unit implies a number, so coerce raw values.
+        self._numeric = bool(
+            not field_def.value_map
+            and (field_def.unit or field_def.device_class in MEASUREMENT_CLASSES)
+        )
+
     @property
     def device_info(self) -> DeviceInfo:
         return DeviceInfo(
@@ -163,7 +181,20 @@ class YarboConfigSensor(
             if isinstance(raw, (int, float)) and raw < 0:
                 return self._field_def.value_map.get("-1")
             return None
+        if self._numeric:
+            return self._as_number(raw)
         return raw
+
+    @staticmethod
+    def _as_number(value):
+        """Coerce a raw value to a number, or None if it isn't one."""
+        if isinstance(value, (int, float)):
+            return value
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            return None
+        return int(num) if num.is_integer() else num
 
     def _extract_custom(self):
         """Handle fields with custom_extractor logic."""
@@ -174,12 +205,40 @@ class YarboConfigSensor(
             from yarbo_robot_sdk.device_helpers import extract_active_network, extract_field
             route_priority = extract_field(data, self._field_def.path)
             return extract_active_network(route_priority)
+        if self._field_def.custom_extractor == "battery_capacity":
+            from yarbo_robot_sdk.device_helpers import extract_field
+            raw = extract_field(data, self._field_def.path)
+            if raw is None:
+                return None
+            # Firmware reports capacity topping out at 95; rescale the top of
+            # the range so a full pack reads 100% (90→90, 91→92, … 95→100).
+            val = int(round(float(raw)))
+            if val <= 90:
+                return val
+            if val >= 95:
+                return 100
+            return 90 + (val - 90) * 2
         if self._field_def.custom_extractor == "volume_scale":
             from yarbo_robot_sdk.device_helpers import extract_field
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
             return int(float(raw) * 100)
+        if self._field_def.custom_extractor == "charging_power":
+            from yarbo_robot_sdk.device_helpers import extract_field
+            # TODO: Replace this computed fallback if firmware starts publishing
+            # a real charging power field.
+            voltage = extract_field(data, "BatteryMSG.voltage")
+            current = extract_field(data, "BatteryMSG.current")
+            if voltage is None or current is None:
+                return None
+            voltage = float(voltage)
+            current = float(current)
+            if abs(voltage) > 1000:
+                voltage = voltage / 1000
+            if abs(current) > 1000:
+                current = current / 1000
+            return round(voltage * current, 2)
         if self._field_def.custom_extractor == "rtk_signal":
             from yarbo_robot_sdk.device_helpers import extract_field
             raw = extract_field(data, self._field_def.path)

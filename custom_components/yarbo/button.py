@@ -15,6 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
+from .entity_filters import control_matches_device
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,10 +26,21 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Yarbo button entities."""
+    from yarbo_robot_sdk import get_control_field_definitions
+
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities = []
     for device in coordinator.devices:
+        ctrl_defs = await hass.async_add_executor_job(
+            get_control_field_definitions, device.type_id
+        )
+        for ctrl_def in ctrl_defs:
+            if ctrl_def.entity_type == "button" and control_matches_device(
+                coordinator, device, ctrl_def
+            ):
+                entities.append(YarboConfigButton(coordinator, device, ctrl_def))
+
         # Data refresh buttons
         entities.append(YarboRefreshGpsRefButton(coordinator, device))
         entities.append(YarboRefreshMapDataButton(coordinator, device))
@@ -52,6 +64,85 @@ def _device_info(device) -> DeviceInfo:
         model=device.model,
         serial_number=device.sn,
     )
+
+
+class YarboConfigButton(
+    CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity
+):
+    """Configuration-driven button entity."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator, device, ctrl_def) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._ctrl_def = ctrl_def
+        self._playing: bool = False  # toggle state for play_sound
+
+        path_key = ctrl_def.path.replace(".", "_").replace("__", "").lower()
+        self._attr_unique_id = f"{device.sn}_{path_key}_button"
+        self._attr_name = ctrl_def.name
+        self._attr_entity_registry_enabled_default = ctrl_def.enabled_by_default
+
+        if ctrl_def.icon:
+            self._attr_icon = ctrl_def.icon
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return _device_info(self._device)
+
+    async def async_press(self) -> None:
+        sn = self._device.sn
+        builder = self._ctrl_def.command_builder
+        _LOGGER.info(
+            "Pressing %s for %s via %s builder=%s",
+            self._ctrl_def.name, sn, self._ctrl_def.command_topic, builder,
+        )
+        try:
+            bound = self.coordinator.bound_device(sn)
+            if bound is not None:
+                if builder == "play_sound":
+                    if self._playing:
+                        await self.hass.async_add_executor_job(bound.core.song_cmd, "null")
+                        self._playing = False
+                    else:
+                        await self.hass.async_add_executor_job(bound.core.song_cmd)
+                        self._playing = True
+                    return
+                if builder == "ignore_obstacle_zones":
+                    await self.hass.async_add_executor_job(bound.core.clear_obstacle_zones)
+                    return
+                if builder == "empty_payload" and self._ctrl_def.command_topic == "stop":
+                    await self.hass.async_add_executor_job(bound.core.stop)
+                    return
+            # fallback: raw mqtt_publish_command for unrecognised builders
+            payload = self._build_payload()
+            await self.hass.async_add_executor_job(
+                self.coordinator._client.mqtt_publish_command,
+                sn,
+                self._device.type_id,
+                self._ctrl_def.command_topic,
+                payload,
+            )
+        except Exception as exc:
+            _LOGGER.error("[button] command FAILED: %s", exc)
+            raise HomeAssistantError(
+                f"Failed to send {self._ctrl_def.name} command: {exc}"
+            ) from exc
+
+    def _build_payload(self) -> dict:
+        builder = self._ctrl_def.command_builder
+        if builder == "ignore_obstacle_zones":
+            return {"zone": []}
+        if builder == "play_sound":
+            if self._playing:
+                self._playing = False
+                return {"song_name": "null"}
+            self._playing = True
+            return {"song_name": "find yarbo"}
+        if builder == "empty_payload":
+            return {}
+        return self._ctrl_def.extra_payload or {}
 
 
 # ---- Data refresh buttons ----
@@ -231,23 +322,25 @@ class YarboStartPlanButton(
                 "Cannot start plan: device is returning to charge"
             )
 
-        # All checks passed — build payload and send
-        payload: dict = {"id": plan_id}
-
-        # Read percent from Plan Start Percent entity via entity registry
+        # All checks passed — send via typed module API
         percent = self._get_plan_percent()
-        if percent is not None and percent > 0:
-            payload["percent"] = int(percent)
-
-        _LOGGER.info("Starting plan %s for %s: %s", plan_id, sn, payload)
+        start_percent = int(percent) if percent is not None and percent > 0 else 0
+        _LOGGER.info("Starting plan %s for %s (percent=%s)", plan_id, sn, start_percent)
         try:
-            await self.hass.async_add_executor_job(
-                self.coordinator._client.mqtt_publish_command,
-                sn,
-                self._device.type_id,
-                "start_plan",
-                payload,
-            )
+            bound = self.coordinator.bound_device(sn)
+            if bound is not None:
+                await self.hass.async_add_executor_job(
+                    bound.core.start_plan, plan_id, start_percent
+                )
+            else:
+                # Fallback to raw API
+                payload: dict = {"id": plan_id}
+                if start_percent > 0:
+                    payload["percent"] = start_percent
+                await self.hass.async_add_executor_job(
+                    self.coordinator._client.mqtt_publish_command,
+                    sn, self._device.type_id, "start_plan", payload,
+                )
         except Exception as exc:
             _LOGGER.error("Failed to start plan: %s", exc)
 
@@ -284,13 +377,14 @@ class YarboPausePlanButton(
     async def async_press(self) -> None:
         _LOGGER.info("Pausing plan for %s", self._device.sn)
         try:
-            await self.hass.async_add_executor_job(
-                self.coordinator._client.mqtt_publish_command,
-                self._device.sn,
-                self._device.type_id,
-                "pause",
-                {},
-            )
+            bound = self.coordinator.bound_device(self._device.sn)
+            if bound is not None:
+                await self.hass.async_add_executor_job(bound.core.pause)
+            else:
+                await self.hass.async_add_executor_job(
+                    self.coordinator._client.core.pause,
+                    self._device.sn, self._device.type_id,
+                )
         except Exception as exc:
             _LOGGER.error("Failed to pause plan: %s", exc)
 
@@ -316,13 +410,14 @@ class YarboResumePlanButton(
     async def async_press(self) -> None:
         _LOGGER.info("Resuming plan for %s", self._device.sn)
         try:
-            await self.hass.async_add_executor_job(
-                self.coordinator._client.mqtt_publish_command,
-                self._device.sn,
-                self._device.type_id,
-                "resume",
-                {},
-            )
+            bound = self.coordinator.bound_device(self._device.sn)
+            if bound is not None:
+                await self.hass.async_add_executor_job(bound.core.resume)
+            else:
+                await self.hass.async_add_executor_job(
+                    self.coordinator._client.core.resume,
+                    self._device.sn, self._device.type_id,
+                )
         except Exception as exc:
             _LOGGER.error("Failed to resume plan: %s", exc)
 
@@ -348,13 +443,14 @@ class YarboStopPlanButton(
     async def async_press(self) -> None:
         _LOGGER.info("Stopping plan for %s", self._device.sn)
         try:
-            await self.hass.async_add_executor_job(
-                self.coordinator._client.mqtt_publish_command,
-                self._device.sn,
-                self._device.type_id,
-                "stop",
-                {},
-            )
+            bound = self.coordinator.bound_device(self._device.sn)
+            if bound is not None:
+                await self.hass.async_add_executor_job(bound.core.stop)
+            else:
+                await self.hass.async_add_executor_job(
+                    self.coordinator._client.core.stop,
+                    self._device.sn, self._device.type_id,
+                )
         except Exception as exc:
             _LOGGER.error("Failed to stop plan: %s", exc)
 
@@ -414,21 +510,18 @@ class YarboRechargeButton(
 
         _LOGGER.info("Starting recharge for %s", sn)
         try:
-            # Step 1: Disable wireless charging
-            await self.hass.async_add_executor_job(
-                self.coordinator._client.mqtt_publish_command,
-                sn,
-                self._device.type_id,
-                "wireless_charging_cmd",
-                {"cmd": 0},
-            )
-            # Step 2: Send recharge command
-            await self.hass.async_add_executor_job(
-                self.coordinator._client.mqtt_publish_command,
-                sn,
-                self._device.type_id,
-                "cmd_recharge",
-                {"cmd": 2},
-            )
+            bound = self.coordinator.bound_device(sn)
+            if bound is not None:
+                await self.hass.async_add_executor_job(bound.core.wireless_charging_cmd, 0)
+                await self.hass.async_add_executor_job(bound.core.return_to_charge)
+            else:
+                await self.hass.async_add_executor_job(
+                    self.coordinator._client.core.wireless_charging_cmd,
+                    sn, 0, self._device.type_id,
+                )
+                await self.hass.async_add_executor_job(
+                    self.coordinator._client.core.return_to_charge,
+                    sn, self._device.type_id,
+                )
         except Exception as exc:
             _LOGGER.error("Failed to send recharge command: %s", exc)

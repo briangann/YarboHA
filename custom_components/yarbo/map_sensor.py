@@ -8,7 +8,7 @@ from collections import Counter
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -48,6 +48,7 @@ class YarboMapSensor(
         super().__init__(coordinator)
         self._device = device
         self._attr_unique_id = f"{device.sn}_map_zones"
+        self._last_signature: tuple | None = None
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -69,7 +70,14 @@ class YarboMapSensor(
 
     @property
     def extra_state_attributes(self) -> dict:
-        """Expose GeoJSON FeatureCollection, zone summary, and center coordinates."""
+        """Expose a lightweight zone summary and center coordinates only.
+
+        The full GeoJSON FeatureCollection is deliberately NOT included here: a
+        complex map exceeds Home Assistant's 16 KB attribute limit, which makes
+        the recorder skip storage and pushes the whole payload over WebSocket to
+        every dashboard on each state write. The frontend fetches the GeoJSON on
+        demand via the ``yarbo/map_zones`` WebSocket command instead.
+        """
         geojson = self.coordinator.map_data.get(self._device.sn)
         if geojson is None:
             return {}
@@ -81,8 +89,8 @@ class YarboMapSensor(
         )
 
         attrs = {
-            "geojson": geojson,
             "zone_summary": dict(type_counts),
+            "feature_count": len(features),
         }
 
         # Use device GPS reference as center point
@@ -93,4 +101,18 @@ class YarboMapSensor(
             attrs["longitude"] = ref["longitude"]
 
         return attrs
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Write HA state only when the map summary actually changes.
+
+        As a CoordinatorEntity this is invoked on every coordinator push (which
+        can be frequent). The map data changes rarely, so skip redundant state
+        writes to avoid needless recorder rows and dashboard WebSocket traffic.
+        """
+        signature = (self.native_value, repr(self.extra_state_attributes))
+        if signature == self._last_signature:
+            return
+        self._last_signature = signature
+        self.async_write_ha_state()
 

@@ -39,10 +39,14 @@
   "options": {
     "step": {
       "init": {
-        "title": "Manage Devices",
-        "description": "Select which Yarbo devices to monitor in Home Assistant.",
+        "title": "Yarbo Options",
+        "description": "Select which Yarbo devices to monitor and how Home Assistant keeps them awake.",
         "data": {
-          "selected_devices": "Devices"
+          "selected_devices": "Devices",
+          "keep_awake_mode": "Keep-awake policy"
+        },
+        "data_description": {
+          "keep_awake_mode": "Always: HA renews the wake-up every 4 minutes so the device never sleeps. Only while charging: wake-up is renewed only while the device is charging on the dock. Never: HA never wakes the device automatically; data updates only while the device is awake on its own."
         }
       }
     },
