@@ -6,6 +6,6 @@
   "dependencies": ["websocket_api"],
   "documentation": "https://github.com/YarboInc/YarboHA",
   "iot_class": "cloud_push",
-  "requirements": ["yarbo-data-sdk>=0.2.0"],
+  "requirements": ["yarbo-data-sdk>=0.2.1"],
   "version": "0.3.3"
 }
