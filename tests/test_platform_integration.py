@@ -221,6 +221,116 @@ async def test_online_binary_sensor_reflects_device_state(hass: HomeAssistant):
 
 
 # ---------------------------------------------------------------------------
+# Switch service calls
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_switch_turn_on_updates_state(hass: HomeAssistant):
+    """switch.turn_on service → entity state becomes 'on' in hass.states."""
+    entry = await _setup_entry(hass)
+    coord = hass.data[DOMAIN][entry.entry_id]
+
+    # Make device available
+    coord.async_set_updated_data({SN: {"__online__": True}})
+    await hass.async_block_till_done()
+
+    switch_id = f"switch.{DEVICE_NAME.lower().replace(' ', '_')}_sound_switch"
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": switch_id}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(switch_id).state == "on"
+
+
+@pytest.mark.asyncio
+async def test_switch_turn_off_updates_state(hass: HomeAssistant):
+    """switch.turn_off service → entity state becomes 'off' in hass.states."""
+    entry = await _setup_entry(hass)
+    coord = hass.data[DOMAIN][entry.entry_id]
+
+    coord.async_set_updated_data({SN: {"__online__": True}})
+    await hass.async_block_till_done()
+
+    switch_id = f"switch.{DEVICE_NAME.lower().replace(' ', '_')}_sound_switch"
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": switch_id}, blocking=True
+    )
+    await hass.services.async_call(
+        "switch", "turn_off", {"entity_id": switch_id}, blocking=True
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(switch_id).state == "off"
+
+
+@pytest.mark.asyncio
+async def test_switch_turn_on_with_no_coordinator_data(hass: HomeAssistant):
+    """switch.turn_on on entity with no coordinator data: HA calls async_turn_on
+    (optimistic state update fires), switch ends up 'on' in hass.states.
+
+    HA does NOT block service calls on unavailable entities for switch platform.
+    The mock client's mqtt_publish_command returns None (no error), so the
+    optimistic state update completes and the entity reports 'on'.
+    """
+    await _setup_entry(hass)
+    switch_id = f"switch.{DEVICE_NAME.lower().replace(' ', '_')}_sound_switch"
+
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": switch_id}, blocking=True
+    )
+    await hass.async_block_till_done()
+    # Optimistic update fires regardless of availability
+    assert hass.states.get(switch_id).state == "on"
+
+
+# ---------------------------------------------------------------------------
+# Select service calls
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_select_option_updates_state(hass: HomeAssistant):
+    """select.select_option service → entity state reflects chosen option."""
+    entry = await _setup_entry(hass)
+    coord = hass.data[DOMAIN][entry.entry_id]
+
+    coord.async_set_updated_data({SN: {"__online__": True}})
+    await hass.async_block_till_done()
+
+    select_id = f"select.{DEVICE_NAME.lower().replace(' ', '_')}_working_state"
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": select_id, "option": "working"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(select_id).state == "working"
+
+
+@pytest.mark.asyncio
+async def test_select_option_standby_updates_state(hass: HomeAssistant):
+    """select.select_option 'standby' → state becomes 'standby' and standby flag set."""
+    entry = await _setup_entry(hass)
+    coord = hass.data[DOMAIN][entry.entry_id]
+
+    coord.async_set_updated_data({SN: {"__online__": True}})
+    await hass.async_block_till_done()
+
+    select_id = f"select.{DEVICE_NAME.lower().replace(' ', '_')}_working_state"
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": select_id, "option": "standby"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(select_id).state == "standby"
+    # Standby flag set on coordinator
+    assert coord._user_standby.get(SN) is True
+
+
+# ---------------------------------------------------------------------------
 # Unload
 # ---------------------------------------------------------------------------
 

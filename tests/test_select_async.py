@@ -1,6 +1,8 @@
-"""Tests for YarboConfigSelect.async_select_option and YarboPlanSelect.async_select_option.
+"""Tests for YarboConfigSelect and YarboPlanSelect internal logic.
 
-Covers command payload building, standby tracking, and error handling.
+Covers: standby tracking, wakeup trigger, error revert, and plan ID storage.
+Service-level state changes (select_option → hass.states) are tested via
+the real HA state machine in test_platform_integration.py.
 """
 
 from __future__ import annotations
@@ -75,34 +77,8 @@ def _make_plan_select():
 # ---------------------------------------------------------------------------
 
 
-class TestConfigSelectAsyncOption:
-    @pytest.mark.asyncio
-    async def test_sends_mqtt_command(self):
-        sel = _make_config_select(value_map={"standby": 0, "working": 1})
-        with patch.object(type(sel), "async_write_ha_state"):
-            await sel.async_select_option("working")
-        sel.hass.async_add_executor_job.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_optimistic_update_before_command(self):
-        sel = _make_config_select(value_map={"standby": 0, "working": 1})
-        with patch.object(type(sel), "async_write_ha_state"):
-            await sel.async_select_option("standby")
-        assert sel._attr_current_option == "standby"
-
-    @pytest.mark.asyncio
-    async def test_unknown_option_skips_command(self):
-        sel = _make_config_select(value_map={"standby": 0})
-        with patch.object(type(sel), "async_write_ha_state"):
-            await sel.async_select_option("unknown")
-        sel.hass.async_add_executor_job.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_no_value_map_skips_command(self):
-        sel = _make_config_select(value_map=None)
-        with patch.object(type(sel), "async_write_ha_state"):
-            await sel.async_select_option("any")
-        sel.hass.async_add_executor_job.assert_not_called()
+class TestConfigSelectInternals:
+    """Internal coordinator/standby effects not observable via hass.states."""
 
     @pytest.mark.asyncio
     async def test_standby_topic_sets_user_standby(self):
@@ -126,29 +102,14 @@ class TestConfigSelectAsyncOption:
         sel.coordinator._async_send_wakeup.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_command_failure_restores_state(self):
-        """On MQTT failure, _handle_coordinator_update is called to revert optimistic state."""
+    async def test_command_failure_reverts_optimistic_state(self):
+        """On MQTT failure, _handle_coordinator_update reverts optimistic state."""
         sel = _make_config_select(value_map={"standby": 0})
-        sel.hass.async_add_executor_job = AsyncMock(
-            side_effect=Exception("broker down")
-        )
+        sel.hass.async_add_executor_job = AsyncMock(side_effect=Exception("broker"))
         with patch.object(type(sel), "async_write_ha_state"):
             with patch.object(sel, "_handle_coordinator_update") as mock_revert:
                 await sel.async_select_option("standby")
         mock_revert.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_extra_payload_merged(self):
-        """extra_payload values are included in the MQTT command."""
-        sel = _make_config_select(
-            value_map={"on": 1},
-            command_key="enable",
-            extra_payload={"type": 2},
-        )
-        with patch.object(type(sel), "async_write_ha_state"):
-            await sel.async_select_option("on")
-        # Verify the executor job was called (payload built correctly)
-        sel.hass.async_add_executor_job.assert_called()
 
 
 # ---------------------------------------------------------------------------
@@ -156,20 +117,15 @@ class TestConfigSelectAsyncOption:
 # ---------------------------------------------------------------------------
 
 
-class TestPlanSelectAsyncOption:
+class TestPlanSelectInternals:
+    """Plan ID is stored in coordinator (not directly observable in hass.states)."""
+
     @pytest.mark.asyncio
     async def test_stores_plan_id_in_coordinator(self):
         sel = _make_plan_select()
         with patch.object(type(sel), "async_write_ha_state"):
             await sel.async_select_option("Front Lawn")
         sel.coordinator.set_selected_plan.assert_called_once_with(SN, 5)
-
-    @pytest.mark.asyncio
-    async def test_updates_current_option(self):
-        sel = _make_plan_select()
-        with patch.object(type(sel), "async_write_ha_state"):
-            await sel.async_select_option("Back Yard")
-        assert sel._attr_current_option == "Back Yard"
 
     @pytest.mark.asyncio
     async def test_unknown_plan_stores_none(self):

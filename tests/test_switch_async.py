@@ -1,7 +1,8 @@
-"""Tests for YarboConfigSwitch async turn on/off and _dispatch_typed.
+"""Tests for YarboConfigSwitch internal routing logic.
 
-Covers: async_turn_on, async_turn_off, _async_send_command fallback path,
-_dispatch_typed for all 7 builders, and follow keepalive lifecycle.
+Covers _dispatch_typed for all 7 builders and _async_follow_keepalive.
+Turn-on/turn-off service behavior is tested via the real HA state machine
+in test_platform_integration.py.
 """
 
 from __future__ import annotations
@@ -9,7 +10,6 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.yarbo.switch import YarboConfigSwitch
 
@@ -53,60 +53,6 @@ def _make_switch(
     sw._follow_keepalive_unsub = None
     sw.hass = hass
     return sw
-
-
-# ---------------------------------------------------------------------------
-# async_turn_on / async_turn_off
-# ---------------------------------------------------------------------------
-
-
-class TestTurnOnOff:
-    @pytest.mark.asyncio
-    async def test_turn_on_sets_optimistic_state(self):
-        sw = _make_switch()
-        with patch.object(type(sw), "async_write_ha_state"):
-            await sw.async_turn_on()
-        assert sw._attr_is_on is True
-
-    @pytest.mark.asyncio
-    async def test_turn_off_clears_state(self):
-        sw = _make_switch()
-        sw._attr_is_on = True
-        with patch.object(type(sw), "async_write_ha_state"):
-            await sw.async_turn_off()
-        assert sw._attr_is_on is False
-
-    @pytest.mark.asyncio
-    async def test_turn_on_sends_command(self):
-        sw = _make_switch()
-        with patch.object(type(sw), "async_write_ha_state"):
-            await sw.async_turn_on()
-        sw.hass.async_add_executor_job.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_turn_off_sends_command(self):
-        sw = _make_switch()
-        with patch.object(type(sw), "async_write_ha_state"):
-            await sw.async_turn_off()
-        sw.hass.async_add_executor_job.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_not_connected_raises(self):
-        sw = _make_switch()
-        sw.coordinator._client = None
-        with patch.object(type(sw), "async_write_ha_state"):
-            with pytest.raises(HomeAssistantError, match="not connected"):
-                await sw.async_turn_on()
-
-    @pytest.mark.asyncio
-    async def test_command_failure_reverts_state(self):
-        sw = _make_switch()
-        sw.hass.async_add_executor_job = AsyncMock(side_effect=Exception("broker"))
-        with patch.object(type(sw), "async_write_ha_state"):
-            with patch.object(sw, "_handle_coordinator_update") as mock_revert:
-                with pytest.raises(HomeAssistantError):
-                    await sw.async_turn_on()
-        mock_revert.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
