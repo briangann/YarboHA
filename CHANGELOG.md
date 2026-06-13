@@ -41,6 +41,11 @@ Upstream sync from YarboInc monorepo (commits b009815a + 37edd28b).
 - **SDK bumped** to `yarbo-data-sdk>=0.2.1` (adds `BoundDevice`, `_ensure_mqtt_for`, dual-broker migration; removes `mqtt_subscribe`/`mqtt_unsubscribe`)
 - `manifest.json` adds `websocket_api` HA dependency
 
+### Removed (upstream changes — verify before merge)
+- **Plan-completion auto-refresh** — coordinator no longer detects `on_going_planning == 5` to auto-call `_async_fetch_plans`. Plan list will not refresh after a run completes without a manual trigger or HA restart.
+- **`yarbo.set_nogozone_enabled` service** — removed without deprecation stub. Automations using this service will fail silently on upgrade. (See decisions needed below.)
+- **`YarboOnlineBinarySensor.extra_state_attributes`** — 15 raw telemetry attributes removed (`wheel_speed_left/right_mps`, `speed_mps`, `dist_left/right_m`, `odom_confidence`, `impact_sensor`, `rain_sensor_data`, `head_gyro_pitch/roll`, `chute_angle`, `lf_dis`, `mt_dis`, `rf_dis`, `abnormal_msg`). None are covered by config-driven sensor entities — SDK field definitions do not include these fields. Dashboard cards and automations reading these attributes will silently return `None`.
+
 ### Fixed (our additions on top of upstream)
 - All `_client` Optional None guards in button, number, select, switch — upstream code accessed `_client` without checking for `None` in fallback branches (silent runtime failure)
 - `number.py` — `BoundCoreModule.publish_command(topic, payload)` and `CoreModule.publish_command(sn, topic, payload, type_id)` have different arg counts; upstream ternary was passing wrong args to the bound path
@@ -58,18 +63,24 @@ Upstream sync from YarboInc monorepo (commits b009815a + 37edd28b).
 
 The following issues were identified during code review and must be resolved or explicitly accepted before merging.
 
+#### ✅ Fixed this session
+
+- **`device_tracker.py` — recorder GPS spam** ✅ Fixed in 971c03a. Reimplemented position
+  dedup cache `_last_position`; `async_write_ha_state()` now skipped when lat/lon/available
+  unchanged.
+
+- **`map_sensor.py` — broken dedup** ✅ Fixed in 971c03a. `repr()` replaced with
+  `json.dumps(sort_keys=True)` for deterministic change detection.
+  Note: `geojson` attribute removal is an upstream architectural decision (moved to
+  `yarbo/map_zones` WebSocket API). Documented in v0.5.1 Removed section; migration note
+  needed in release announcement.
+
 #### 🔴 Regressions (must fix)
 
-- **`device_tracker.py` — recorder GPS spam** `_maybe_write_state()` dedup guard removed,
-  replaced with bare `async_write_ha_state()`. MQTT heartbeats fire every ~5s; without
-  the guard the recorder writes an identical GPS row every heartbeat when the device is
-  parked. Was an intentional performance fix. Must revert or reimplement.
-
-- **`map_sensor.py` — breaking attribute removal** `"geojson"` key removed from
-  `extra_state_attributes`; replaced with `"feature_count"`. Existing Lovelace map cards
-  or automations reading `state_attr(..., "geojson")` break silently on upgrade. GeoJSON
-  moved to the `yarbo/map_zones` WebSocket API. Needs migration note and/or deprecation
-  passthrough.
+- **`binary_sensor.py` — 15 raw telemetry attributes silently gone** ✅ Fixed. Restored
+  `extra_state_attributes` on `YarboOnlineBinarySensor` with all 15 fields. Will remain
+  until upstream SDK field definitions cover these paths, at which point they can migrate
+  to dedicated sensor entities.
 
 #### 🟡 Decisions needed before merge
 
@@ -89,16 +100,10 @@ The following issues were identified during code review and must be resolved or 
   Decision: add a one-version stub that raises `ServiceValidationError` with a migration
   message, or document explicitly as a breaking removal.
 
-#### 🟢 Low impact / verify before close
+#### 🟢 Documented / low risk
 
-- **`binary_sensor.py` — `YarboOnlineBinarySensor.extra_state_attributes` removed**
-  Wheel speed, fused odometry, ultrasonic distances, impact & rain raw values were
-  exposed here. Verify these are now available through config-driven sensor entities;
-  if not, some dashboard cards silently lose attributes.
-
-- **`coordinator.py` — plan-completion auto-refresh removed** Detecting
-  `on_going_planning == 5` and auto-calling `_async_fetch_plans` is gone. Plan list
-  won't refresh after a run completes without a manual trigger.
+- **`coordinator.py` — plan-completion auto-refresh removed** Documented in v0.5.1
+  Removed section. Plan list won't refresh after a run without a manual trigger.
 
 ---
 

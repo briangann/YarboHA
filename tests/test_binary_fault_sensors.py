@@ -239,3 +239,78 @@ class TestRawBool:
 
     def test_none_raw(self):
         assert self._sensor(None).is_on is None
+
+
+# ---------------------------------------------------------------------------
+# YarboOnlineBinarySensor — extra_state_attributes
+# ---------------------------------------------------------------------------
+
+
+def _make_online_sensor(data=None, sn="SN001"):
+    coord = _make_coordinator(sn=sn, data=data or {})
+    device = _make_device(sn=sn)
+    sensor = YarboOnlineBinarySensor.__new__(YarboOnlineBinarySensor)
+    sensor.coordinator = coord
+    sensor._device = device
+    return sensor
+
+
+class TestOnlineSensorAttributes:
+    def test_wheel_speed_and_average(self):
+        sensor = _make_online_sensor({"WheelSpeedMSG": {"left": 0.5, "right": 0.7}})
+        attrs = sensor.extra_state_attributes
+        assert attrs["wheel_speed_left_mps"] == 0.5
+        assert attrs["wheel_speed_right_mps"] == 0.7
+        assert attrs["speed_mps"] == round((0.5 + 0.7) / 2.0, 3)
+
+    def test_wheel_distance(self):
+        sensor = _make_online_sensor(
+            {"WheelSpeedMSG": {"dist_left": 12.345, "dist_right": 12.1}}
+        )
+        attrs = sensor.extra_state_attributes
+        assert attrs["dist_left_m"] == 12.3
+        assert attrs["dist_right_m"] == 12.1
+
+    def test_odom_confidence(self):
+        sensor = _make_online_sensor({"combined_odom_confidence": 0.987654})
+        assert sensor.extra_state_attributes["odom_confidence"] == 0.988
+
+    def test_running_status_fields(self):
+        rs = {
+            "impact_sensor": 0,
+            "rain_sensor_data": 1,
+            "head_gyro_pitch": 2.5,
+            "head_gyro_roll": -1.2,
+            "chute_angle": 45,
+        }
+        sensor = _make_online_sensor({"RunningStatusMSG": rs})
+        attrs = sensor.extra_state_attributes
+        assert attrs["impact_sensor"] == 0
+        assert attrs["rain_sensor_data"] == 1
+        assert attrs["head_gyro_pitch"] == 2.5
+        assert attrs["chute_angle"] == 45
+
+    def test_ultrasonic_distances(self):
+        sensor = _make_online_sensor(
+            {"ultrasonic_msg": {"lf_dis": 100, "mt_dis": 200, "rf_dis": 9999}}
+        )
+        attrs = sensor.extra_state_attributes
+        assert attrs["lf_dis"] == 100
+        assert attrs["mt_dis"] == 200
+        assert attrs["rf_dis"] == 9999
+
+    def test_abnormal_msg(self):
+        sensor = _make_online_sensor({"abnormal_msg": {"left_motor_err": 1}})
+        assert sensor.extra_state_attributes["abnormal_msg"] == {"left_motor_err": 1}
+
+    def test_empty_data_returns_empty_dict(self):
+        sensor = _make_online_sensor({})
+        assert sensor.extra_state_attributes == {}
+
+    def test_missing_sn_returns_empty_dict(self):
+        coord = _make_coordinator(sn="OTHER", data={})
+        device = _make_device(sn="SN001")
+        sensor = YarboOnlineBinarySensor.__new__(YarboOnlineBinarySensor)
+        sensor.coordinator = coord
+        sensor._device = device
+        assert sensor.extra_state_attributes == {}
