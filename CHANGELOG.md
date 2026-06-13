@@ -56,56 +56,26 @@ Upstream sync from YarboInc monorepo (commits b009815a + 37edd28b).
 
 ## [0.5.2] - 2026-06-13
 
-### Documentation
-- **AGENTS.md** — updated to reflect current architecture (domain `yarbo`, config-driven entities, SDK 0.2.1, heartbeat timeout 90s, test coverage notes)
+Regression fixes and feature restorations on top of the v0.5.1 upstream sync.
 
-### Pre-merge review findings for `feat/upstream-sync-0.3.3`
+### Fixed
+- **Recorder GPS spam** — device tracker wrote a state row every heartbeat (~every 5s) even when the robot was parked. Now skips writes when position and availability are unchanged.
+- **Map sensor dedup broken** — `repr()` on dicts with floats is non-deterministic; replaced with `json.dumps(sort_keys=True)` so the change-detection signature is stable.
+- **Wireless charging blocked plan start** — upstream incorrectly blocked plan start when `BatteryMSG.status > 1`. The robot autonomously undocks from wireless charging; only wired charging (physical cable) is a real blocker.
+- **Plan select blind to app-started plans** — restored `plan_feedback` MQTT subscription (`snowbot/{sn}/device/plan_feedback`); `current_option` now matches the running plan by `areaIds`, reflecting plans started from the mobile app or any other source.
+- **`yarbo.set_nogozone_enabled` service removed without deprecation** — restored service handler and `async_set_nogozone_enabled()` coordinator method. Uses `yarbo_robot_sdk.codec` for firmware-aware MQTT encoding.
+- **15 raw telemetry attributes removed from Online sensor** — restored `extra_state_attributes` on `YarboOnlineBinarySensor`: wheel speed L/R/avg, odometry distance L/R, odometry confidence, impact, rain, head gyro pitch/roll, chute angle, ultrasonic distances L/C/R, `abnormal_msg`.
+- **7 fault binary sensors missing** — restored `YarboImpactBinarySensor`, `YarboLeftMotorFaultSensor`, `YarboRightMotorFaultSensor`, `YarboLeftWheelFaultSensor`, `YarboRightWheelFaultSensor`, `YarboRadarFaultSensor`, `YarboPowerFaultSensor`.
+- **10 plan feedback sensors missing** — restored `YarboCurrentPlanSensor`, `YarboCleanAreaSensor`, `YarboBatteryConsumptionSensor`, `YarboPlanProgressSensor`, `YarboRemainingAreaSensor`, `YarboTimeRemainingSensor`, `YarboElapsedTimeSensor`, `YarboTotalPlanAreaSensor`, `YarboTotalPlanTimeSensor`, `YarboPlanPathSensor`.
+- **Dynamic obstacles missing from map** — restored `cloud_points_feedback` MQTT subscription; `yarbo/map_zones` WebSocket response now includes `obstacles_geojson` with GPS-projected obstacle clusters.
+- **`Active Charge` binary sensor name** — upstream renamed to "Charging" which clashes with "Recharging Status"; restored override to "Active Charge".
 
-The following issues were identified during code review and must be resolved or explicitly accepted before merging.
+### Added
+- **16 sensors now enabled by default** — battery cell temperatures 1–6, voltage, current, charging power, HaLow RSSI, obstacle detected, rain sensor, odometry X/Y/heading, GPS satellite count. Previously disabled by SDK defaults.
 
-#### ✅ Fixed this session
-
-- **`device_tracker.py` — recorder GPS spam** ✅ Fixed in 971c03a. Reimplemented position
-  dedup cache `_last_position`; `async_write_ha_state()` now skipped when lat/lon/available
-  unchanged.
-
-- **`map_sensor.py` — broken dedup** ✅ Fixed in 971c03a. `repr()` replaced with
-  `json.dumps(sort_keys=True)` for deterministic change detection.
-  Note: `geojson` attribute removal is an upstream architectural decision (moved to
-  `yarbo/map_zones` WebSocket API). Documented in v0.5.1 Removed section; migration note
-  needed in release announcement.
-
-#### 🔴 Regressions (must fix)
-
-- **`binary_sensor.py` — 15 raw telemetry attributes silently gone** ✅ Fixed. Restored
-  `extra_state_attributes` on `YarboOnlineBinarySensor` with all 15 fields. Will remain
-  until upstream SDK field definitions cover these paths, at which point they can migrate
-  to dedicated sensor entities.
-
-#### 🟡 Decisions needed before merge
-
-- **`button.py` — wireless-charging check reversed** Check 4 in `YarboStartPlanButton`
-  now blocks plan start when `BatteryMSG.status > 1`. Previous version explicitly
-  documented: *"Wireless charging is NOT a blocker — the robot undocks itself."* Upstream
-  reversed this without explanation. Needs device-confirmed answer: can the robot
-  autonomously undock from wireless charging when a plan is issued?
-
-- **`select.py` — plan select lost running-plan reflection** ✅ Fixed. `current_option`
-  now resolves plan name from `coordinator.get_selected_plan()` (tracks selections and
-  button starts). Limitation vs old behavior: only reflects plans started through HA;
-  plans started from the mobile app won't be reflected (old `plan_feedback` MQTT mechanism
-  removed upstream).
-
-- **`__init__.py` — `yarbo.set_nogozone_enabled` service removed** ✅ Restored. Service
-  re-registered in `__init__.py`; `async_set_nogozone_enabled()` re-added to coordinator
-  using `yarbo_robot_sdk.codec` for firmware-aware encoding and `_ensure_mqtt_for(sn)`
-  for dual-broker MQTT publish. Raw map data (`_map_raw`) preserved alongside GeoJSON in
-  coordinator so zone mutations have the original payload to modify.
-
-#### 🟢 Documented / low risk
-
-- **`coordinator.py` — plan-completion auto-refresh removed** Documented in v0.5.1
-  Removed section. Plan list won't refresh after a run without a manual trigger.
+### Notes
+- Plan list no longer auto-refreshes after a run completes (`on_going_planning == 5` detection removed upstream). Use the Refresh Plans button or restart HA to update.
+- `geojson` attribute removed from `YarboMapSensor` state attributes (upstream architectural change). GeoJSON is now served on demand via the `yarbo/map_zones` WebSocket command. Update any Lovelace cards that read `state_attr(..., "geojson")` to use the WebSocket API instead.
 
 ---
 
