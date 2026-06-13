@@ -248,6 +248,7 @@ Set `YARBO_API_BASE_URL` env var to override the default API endpoint during dev
 When the user corrects your approach, append a one-line rule here before ending the session. Write it concretely ("Always use X for Y"), never abstractly ("be careful with Y"). If an existing line already covers the correction, tighten it instead of adding a new one. Remove lines when the underlying issue goes away (model upgrades, refactors, process changes).
 
 - When user says "save session please": append to SESSION.md (brief bullets) AND append to SESSION-LOG.md (detailed). Never overwrite either file.
+- CHANGELOG.md is user-facing only — clean release notes, no internal review scaffolding. Put regression analysis, decision logs, upstream sync findings, and commit references in CHANGELOG-dev.md instead.
 
 ---
 
