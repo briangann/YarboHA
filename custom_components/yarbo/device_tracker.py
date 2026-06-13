@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.device_tracker.const import SourceType
-from homeassistant.components.device_tracker.config_entry import TrackerEntity
+from homeassistant.components.device_tracker.entity import TrackerEntity  # type: ignore[attr-defined]
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
