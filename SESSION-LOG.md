@@ -93,3 +93,63 @@ Removed/trimmed:
 
 ### Next session
 Address PR #23 blockers 1–5 in order. Start with `device_tracker.py` recorder GPS spam (easiest — revert `_maybe_write_state`).
+
+---
+
+## 2026-06-13 (afternoon) — PR #23 Blocker Resolution + Feature Restoration
+
+### Branch / PR
+- Branch: `feat/upstream-sync-0.3.3`
+- PR #23: https://github.com/briangann/YarboHA/pull/23 (description updated)
+- Commits pushed: `971c03a..14ac065`
+
+---
+
+### Fixes applied
+
+**device_tracker.py** (`971c03a`)
+- Restored `_last_position` cache; `async_write_ha_state()` skipped when lat/lon/available unchanged
+- Was writing ~30-60 recorder rows/min when device stationary
+
+**map_sensor.py** (`971c03a`)
+- `repr(self.extra_state_attributes)` → `json.dumps(..., sort_keys=True)` for deterministic dedup
+
+**binary_sensor.py — 15 telemetry attrs** (`1805624`)
+- Restored `extra_state_attributes` on `YarboOnlineBinarySensor`: wheel speed L/R/avg, dist L/R, odom confidence, impact, rain, gyro pitch/roll, chute angle, ultrasonic L/C/R, abnormal_msg
+
+**select.py** (`546abde`, `fca0968`)
+- Restored `plan_feedback` MQTT subscription (`snowbot/{sn}/device/plan_feedback`)
+- `current_option`: checks `plan_feedback[sn].areaIds` → matches plan by areaIds → falls back to `get_selected_plan()` → falls back to `_attr_current_option`
+
+**__init__.py + coordinator.py** (`c3a7a83`)
+- Restored `yarbo.set_nogozone_enabled` service with full schema validation
+- Restored `async_set_nogozone_enabled()`: reads `_map_raw`, mutates zone enable flag, publishes `snowbot/{sn}/app/save_nogozone` via `_ensure_mqtt_for(sn)` with firmware-aware encoding
+- Added `_map_raw` storage alongside `_map_data` in `_async_fetch_map_data`
+
+**button.py** (`04e9876`)
+- Removed Check 4 (`BatteryMSG.status > 1` blocks plan start) — robot autonomously undocks from wireless charging
+
+**sensor.py** (`854e899`, `37023c8`)
+- `_FORCE_ENABLED` set overrides SDK `enabled_by_default=False` for 16 sensors:
+  - BatteryMSG.temperature1-6, voltage, current
+  - `__computed__.charging_power`, `halow_status.strength`
+  - `StateMSG.obstacle`, `RunningStatusMSG.rain_sensor_data`
+  - `CombinedOdom.x/y/phi`, `RTKMSG.sat_num`
+
+**binary_sensor.py — fault sensors** (`eabf70f`)
+- Restored `_YarboFaultBinarySensorBase` + 7 subclasses: Impact (VIBRATION), Left/Right Motor Fault, Left/Right Wheel Fault, Radar Fault, Power Fault
+- Read from `abnormal_msg` / `RunningStatusMSG`; not in SDK field definitions
+
+**coordinator.py + websocket_api.py** (`14ac065`)
+- Restored `cloud_points_feedback` MQTT subscription + `_cloud_points` storage + `cloud_points` property
+- `yarbo/map_zones` WebSocket response now includes `obstacles_geojson` (GPS-projected `tmp_barrier_points`)
+- All restored subscriptions: INFO log on success, WARNING with feature impact on failure
+
+---
+
+### Open follow-ups
+- **Battery threshold SOC check** in `YarboStartPlanButton`: user confirmed robot enforces min/max battery from "working preferences". Field not found in SDK JSON or MQTT push data — likely in REST `get_device_msg` response. Needs device payload inspection.
+- **Plan-completion auto-refresh** (`on_going_planning == 5`): documented in CHANGELOG as removed upstream, not restored.
+
+### Test count
+302 tests pass (up from 288 at session start)
