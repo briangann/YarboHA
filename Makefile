@@ -19,7 +19,7 @@ help:
 setup:
 	python3 -m venv .venv
 	.venv/bin/pip install --upgrade pip
-	git clone --depth 1 --branch $(HA_BRANCH) https://github.com/home-assistant/core.git $(HA_CLONE)
+	test -d $(HA_CLONE) || git clone --depth 1 --branch $(HA_BRANCH) https://github.com/home-assistant/core.git $(HA_CLONE)
 	.venv/bin/pip install --no-deps $(HA_CLONE)
 	.venv/bin/pip install voluptuous
 	.venv/bin/pip install -r requirements_dev.txt
