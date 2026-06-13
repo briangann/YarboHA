@@ -26,6 +26,29 @@ This changelog follows the [Keep a Changelog](https://keepachangelog.com/en/1.0.
 
 ---
 
+## [0.5.1] - 2026-06-13
+
+Upstream sync from YarboInc monorepo (commits b009815a + 37edd28b).
+
+### New
+- **WebSocket map API** — GeoJSON zone map served on demand via `yarbo/map_zones` WebSocket command instead of entity attributes, avoiding Home Assistant's 16 KB attribute limit
+- **Entity filters** — `entity_filters.py` provides `control_matches_device()` to suppress head-specific controls when the wrong attachment is fitted
+
+### Changed
+- **Config-driven sensor and binary sensor** — all ~20 individual sensor classes replaced by `YarboConfigSensor` / `YarboConfigBinarySensor` driven by SDK field definitions; adds `battery_capacity` rescaling (firmware caps at 95%, rescaled to 100%), `charging_power` computed from voltage × current, and new `custom_extractor` variants
+- **Coordinator rewrite** — storage persistence via `homeassistant.helpers.storage`, keep-awake mode policy (`CONF_KEEP_AWAKE_MODE`: always / docked / off), typed SDK dispatch via `BoundDevice` API with raw MQTT fallback
+- **Button, number, select, switch** — route commands through typed SDK `bound_device()` methods where available; fall back to raw MQTT
+- **SDK bumped** to `yarbo-data-sdk>=0.2.1` (adds `BoundDevice`, `_ensure_mqtt_for`, dual-broker migration; removes `mqtt_subscribe`/`mqtt_unsubscribe`)
+- `manifest.json` adds `websocket_api` HA dependency
+
+### Fixed (our additions on top of upstream)
+- All `_client` Optional None guards in button, number, select, switch — upstream code accessed `_client` without checking for `None` in fallback branches (silent runtime failure)
+- `number.py` — `BoundCoreModule.publish_command(topic, payload)` and `CoreModule.publish_command(sn, topic, payload, type_id)` have different arg counts; upstream ternary was passing wrong args to the bound path
+- `device_tracker.py` — `SourceType` imported from correct `.const` submodule
+- `config_flow.py` — `str | None` title coerced to `str`; `context["entry_id"]` safe-accessed via `.get()`
+
+---
+
 ## [Unreleased]
 
 ### Documentation
