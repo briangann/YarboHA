@@ -172,3 +172,47 @@ Address PR #23 blockers 1–5 in order. Start with `device_tracker.py` recorder 
 
 ### Still open
 - Battery threshold SOC check — field path unknown, needs live device `get_device_msg` inspection
+
+---
+
+## 2026-06-13 (evening) — Dashboard branch + Live HA Migration
+
+### Branch / PR
+- `feat/yarbo-monitoring-dashboard` → PR #19 (open)
+- All work on this branch; no new merges to main
+
+### Rebase
+- Rebased onto main (v0.5.2); two CHANGELOG.md conflicts resolved
+  - Dashboard Added section moved to `[Unreleased]` (not 0.5.1)
+  - generate.py entry added to Unreleased
+- Force-pushed `0b87f88`→`025bffb`
+
+### YarboMapGeoJsonSensor (commit `025bffb`)
+- New sensor in `map_sensor.py`; disabled by default
+- `_attr_unique_id = f"{device.sn}_map_geojson"`
+- `extra_state_attributes`: `geojson` (full GeoJSON from `coordinator.map_data`) + `obstacles_geojson` (GPS-projected cloud_points barriers)
+- Dashboard updated: `sensor.<SN>_map_zones` → `sensor.<SN>_map_geojson` for GeoJSON overlays
+- README: yarbo_bg → yarbo throughout; added step 2 (enable map_geojson + recorder exclude)
+
+### Live HA Deployment
+- rsync to zeus:/home/bgann/home-assistant/config/custom_components/yarbo/
+- `docker restart homeassistant`
+- Configured `yarbo` v0.5.2 entry: <account email>, selected 24430102GM0W6421, area=BARN, name="Yarbo"
+- Deleted `yarbo_bg` v0.4.13 entry
+
+### Entity ID problem and fix
+- After migration, entity IDs became `barn_yarbo_*` (area BARN + device name "Yarbo")
+- Old IDs were `24430102gm0w6421_*` (SN-based, no area/name prefix)
+- Root cause: `_attr_has_entity_name = True` + `name_by_user = "Yarbo"` + `area_id = "barn"` → `{area}_{name_by_user}_{entity}` prefix
+- Fix: set `name_by_user = None` + `area_id = None` in `core.device_registry`; renamed 49 entity IDs in `core.entity_registry` from `barn_yarbo_` → `24430102gm0w6421_`; restarted HA
+- Result: entity IDs back to `24430102gm0w6421_*`, dashboard working, 0 console errors
+
+### Key learnings
+- HA entity IDs for `_attr_has_entity_name = True` entities: `{area}_{device_name}_{entity}` when area assigned; `{device_name}_{entity}` when no area; `{area}_{device_name}_{entity}` where device_name = `name_by_user` if set else SDK `device.name`
+- SDK `device.name` = SN (`24430102GM0W6421`), so clearing `name_by_user` gives SN-based entity IDs
+- Entity IDs are frozen at creation; must edit `core.entity_registry` directly to rename
+- `generate.py` placeholder `<DEVICE_SN>` is correct for default installs with no area/name_by_user overrides
+
+### Final state
+- Dashboard fully working on yarbo v0.5.2: map zones, plan feedback (44.1%), device status, faults
+- PR #19 open for merge; CI passing
