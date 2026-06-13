@@ -10,7 +10,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTime
+
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -1572,42 +1572,58 @@ class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
         return round(max(float(total) - float(actual), 0), 2)
 
 
+def _fmt_duration(seconds: float) -> str:
+    """Format seconds as 'Xh Ym Zs', 'Ym Zs', or 'Zs'. keep — portable display format."""
+    s = int(max(seconds, 0))
+    h, remainder = divmod(s, 3600)
+    m, sec = divmod(remainder, 60)
+    if h:
+        return f"{h}h {m}m {sec}s"
+    if m:
+        return f"{m}m {sec}s"
+    return f"{sec}s"
+
+
 class YarboTimeRemainingSensor(_YarboPlanFeedbackBase):
-    """Estimated time remaining in current plan (seconds)."""
+    """Estimated time remaining — displayed as Xh Ym Zs; raw seconds in attribute."""
 
     _attr_name = "Estimated Time Remaining"
     _attr_icon = "mdi:timer-outline"
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
         self._attr_unique_id = f"{device.sn}_time_remaining"
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> str | None:
         val = self._pf().get("leftTime")
-        return round(max(float(val), 0), 0) if val is not None else None
+        return _fmt_duration(float(val)) if val is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        val = self._pf().get("leftTime")
+        return {"seconds": round(max(float(val), 0), 0)} if val is not None else {}
 
 
 class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
-    """Elapsed time in current plan run (seconds)."""
+    """Elapsed plan time — displayed as Xh Ym Zs; raw seconds in attribute."""
 
     _attr_name = "Plan Elapsed Time"
     _attr_icon = "mdi:timer"
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
         self._attr_unique_id = f"{device.sn}_elapsed_time"
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> str | None:
         val = self._pf().get("duration")
-        return round(float(val), 0) if val is not None else None
+        return _fmt_duration(float(val)) if val is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        val = self._pf().get("duration")
+        return {"seconds": round(float(val), 0)} if val is not None else {}
 
 
 class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
@@ -1629,22 +1645,24 @@ class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
 
 
 class YarboTotalPlanTimeSensor(_YarboPlanFeedbackBase):
-    """Estimated total time for the current plan (seconds)."""
+    """Total estimated plan time — displayed as Xh Ym Zs; raw seconds in attribute."""
 
     _attr_name = "Total Plan Time"
     _attr_icon = "mdi:timer-outline"
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
         self._attr_unique_id = f"{device.sn}_total_plan_time"
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> str | None:
         val = self._pf().get("totalTime")
-        return round(float(val), 0) if val is not None else None
+        return _fmt_duration(float(val)) if val is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        val = self._pf().get("totalTime")
+        return {"seconds": round(float(val), 0)} if val is not None else {}
 
 
 class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
