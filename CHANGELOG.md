@@ -54,7 +54,7 @@ Upstream sync from YarboInc monorepo (commits b009815a + 37edd28b).
 
 ---
 
-## [Unreleased]
+## [0.5.2] - 2026-06-13
 
 ### Documentation
 - **AGENTS.md** — updated to reflect current architecture (domain `yarbo`, config-driven entities, SDK 0.2.1, heartbeat timeout 90s, test coverage notes)
