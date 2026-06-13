@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-from yarbo_robot_sdk import get_field_definitions
-from yarbo_robot_sdk.device_helpers import extract_field
-
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
@@ -25,12 +22,13 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Yarbo binary sensors dynamically from SDK field definitions."""
+    from yarbo_robot_sdk import get_field_definitions
 
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     entities: list[BinarySensorEntity] = []
     for device in coordinator.devices:
-        # Heartbeat-driven online sensor
+        # Hardcoded Online binary sensor (heartbeat-driven)
         entities.append(YarboOnlineBinarySensor(coordinator, device))
 
         # Config-driven binary sensors from JSON field definitions
@@ -40,15 +38,6 @@ async def async_setup_entry(
         for field_def in field_defs:
             if field_def.entity_type == "binary_sensor":
                 entities.append(YarboConfigBinarySensor(coordinator, device, field_def))
-
-        # Raw telemetry binary sensors from abnormal_msg / RunningStatusMSG
-        entities.append(YarboImpactBinarySensor(coordinator, device))
-        entities.append(YarboLeftMotorFaultSensor(coordinator, device))
-        entities.append(YarboRightMotorFaultSensor(coordinator, device))
-        entities.append(YarboLeftWheelFaultSensor(coordinator, device))
-        entities.append(YarboRightWheelFaultSensor(coordinator, device))
-        entities.append(YarboRadarFaultSensor(coordinator, device))
-        entities.append(YarboPowerFaultSensor(coordinator, device))
 
     async_add_entities(entities)
 
@@ -83,64 +72,6 @@ class YarboOnlineBinarySensor(
             return self.coordinator.data[self._device.sn].get("__online__")
         return None
 
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Surface DeviceMSG fields that don't have dedicated entities.
-
-        Wheel speed, fused odometry confidence, ultrasonic distances,
-        impact & rain sensors, and abnormal_msg — all keyed directly
-        off the raw DeviceMSG snapshot. Small scalars only; piggy-
-        backing on the always-present 'online' sensor keeps the
-        entity surface tidy.
-        """
-        data = (self.coordinator.data or {}).get(self._device.sn, {}) or {}
-        attrs: dict = {}
-
-        ws = data.get("WheelSpeedMSG")
-        if isinstance(ws, dict):
-            left = ws.get("left")
-            right = ws.get("right")
-            if isinstance(left, (int, float)):
-                attrs["wheel_speed_left_mps"] = round(float(left), 3)
-            if isinstance(right, (int, float)):
-                attrs["wheel_speed_right_mps"] = round(float(right), 3)
-            if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-                attrs["speed_mps"] = round((float(left) + float(right)) / 2.0, 3)
-            for k in ("dist_left", "dist_right"):
-                v = ws.get(k)
-                if isinstance(v, (int, float)):
-                    attrs[k + "_m"] = round(float(v), 1)
-
-        conf = data.get("combined_odom_confidence")
-        if isinstance(conf, (int, float)):
-            attrs["odom_confidence"] = round(float(conf), 3)
-
-        rs = data.get("RunningStatusMSG")
-        if isinstance(rs, dict):
-            for k in (
-                "impact_sensor",
-                "rain_sensor_data",
-                "head_gyro_pitch",
-                "head_gyro_roll",
-                "chute_angle",
-            ):
-                v = rs.get(k)
-                if v is not None:
-                    attrs[k] = v
-
-        um = data.get("ultrasonic_msg")
-        if isinstance(um, dict):
-            for k in ("lf_dis", "mt_dis", "rf_dis"):
-                v = um.get(k)
-                if v is not None:
-                    attrs[k] = v
-
-        ab = data.get("abnormal_msg")
-        if ab is not None:
-            attrs["abnormal_msg"] = ab
-
-        return attrs
-
 
 class YarboConfigBinarySensor(
     CoordinatorEntity[YarboDataUpdateCoordinator], BinarySensorEntity
@@ -157,10 +88,6 @@ class YarboConfigBinarySensor(
         path_key = field_def.path.replace(".", "_").replace("__", "").lower()
         self._attr_unique_id = f"{device.sn}_{path_key}"
         self._attr_name = field_def.name
-        # "Charging" is misleading alongside "Recharging Status" which also
-        # uses "Charging" as a state value. Override to clarify meaning.
-        if field_def.custom_extractor == "charging_threshold":
-            self._attr_name = "Active Charge"
         self._attr_entity_registry_enabled_default = field_def.enabled_by_default
 
         if field_def.device_class:
@@ -200,6 +127,16 @@ class YarboConfigBinarySensor(
             if isinstance(raw, (int, float)):
                 return raw > 0
             return None
+        if self._field_def.custom_extractor == "nonzero_threshold":
+            # Value 0 means normal/off; any non-zero value means active.
+            if isinstance(raw, (int, float)):
+                return raw != 0
+            return None
+        if self._field_def.custom_extractor == "planning_problem":
+            try:
+                return int(raw) < 0
+            except (TypeError, ValueError):
+                return None
         if self._field_def.value_map:
             mapped = self._field_def.value_map.get(str(raw))
             if mapped is None:
@@ -207,20 +144,12 @@ class YarboConfigBinarySensor(
             return mapped.lower() in ("true", "1", "on", "yes")
         return bool(raw)
 
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Expose raw value for diagnostic extractors."""
-        if self._field_def.custom_extractor == "charging_threshold":
-            raw = self._extract(self._field_def.path)
-            if raw is not None:
-                return {"battery_status_raw": raw}
-        return {}
-
     def _extract(self, field_path: str):
         """Extract a field value from coordinator data."""
         data = self._get_device_data()
         if data is None:
             return None
+        from yarbo_robot_sdk.device_helpers import extract_field
 
         return extract_field(data, field_path)
 
@@ -228,165 +157,3 @@ class YarboConfigBinarySensor(
         if self.coordinator.data and self._device.sn in self.coordinator.data:
             return self.coordinator.data[self._device.sn]
         return None
-
-
-# ---------------------------------------------------------------------------
-# Raw telemetry binary sensors
-# ---------------------------------------------------------------------------
-class _YarboFaultBinarySensorBase(
-    CoordinatorEntity[YarboDataUpdateCoordinator], BinarySensorEntity
-):
-    """Base for binary sensors reading fault/status flags from coordinator data."""
-
-    _attr_has_entity_name = True
-    _attr_device_class = BinarySensorDeviceClass.PROBLEM
-    _attr_entity_registry_enabled_default = True
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator)
-        self._device = device
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device.sn)},
-            name=self._device.name,
-            manufacturer="Yarbo",
-            model=self._device.model,
-            serial_number=self._device.sn,
-        )
-
-    def _abnormal(self) -> dict:
-        data = (self.coordinator.data or {}).get(self._device.sn) or {}
-        return data.get("abnormal_msg") or {}
-
-    def _running(self) -> dict:
-        data = (self.coordinator.data or {}).get(self._device.sn) or {}
-        return data.get("RunningStatusMSG") or {}
-
-    @staticmethod
-    def _fault(val) -> bool | None:
-        """Return True/False for numeric fault flags; None if absent; False for non-numeric."""
-        if val is None:
-            return None
-        if not isinstance(val, (int, float)):
-            return False  # Unexpected type — treat as no fault
-        return val != 0
-
-
-class YarboImpactBinarySensor(_YarboFaultBinarySensorBase):
-    """Bump / impact sensor — on when collision detected."""
-
-    _attr_name = "Impact"
-    _attr_device_class = BinarySensorDeviceClass.VIBRATION
-    _attr_icon = "mdi:car-emergency"
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_impact"
-
-    @property
-    def is_on(self) -> bool | None:
-        val = self._running().get("impact_sensor")
-        return self._fault(val)
-
-
-class YarboLeftMotorFaultSensor(_YarboFaultBinarySensorBase):
-    """Left motor fault."""
-
-    _attr_name = "Left Motor Fault"
-    _attr_icon = "mdi:engine-off"
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_left_motor_fault"
-
-    @property
-    def is_on(self) -> bool | None:
-        val = self._abnormal().get("left_motor_err")
-        return self._fault(val)
-
-
-class YarboRightMotorFaultSensor(_YarboFaultBinarySensorBase):
-    """Right motor fault."""
-
-    _attr_name = "Right Motor Fault"
-    _attr_icon = "mdi:engine-off"
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_right_motor_fault"
-
-    @property
-    def is_on(self) -> bool | None:
-        val = self._abnormal().get("right_motor_err")
-        return self._fault(val)
-
-
-class YarboLeftWheelFaultSensor(_YarboFaultBinarySensorBase):
-    """Left wheel fault."""
-
-    _attr_name = "Left Wheel Fault"
-    _attr_icon = "mdi:tire"
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_left_wheel_fault"
-
-    @property
-    def is_on(self) -> bool | None:
-        val = self._abnormal().get("left_wheel_fault_state")
-        return self._fault(val)
-
-
-class YarboRightWheelFaultSensor(_YarboFaultBinarySensorBase):
-    """Right wheel fault."""
-
-    _attr_name = "Right Wheel Fault"
-    _attr_icon = "mdi:tire"
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_right_wheel_fault"
-
-    @property
-    def is_on(self) -> bool | None:
-        val = self._abnormal().get("right_wheel_fault_state")
-        return self._fault(val)
-
-
-class YarboRadarFaultSensor(_YarboFaultBinarySensorBase):
-    """Radar / obstacle detection fault."""
-
-    _attr_name = "Radar Fault"
-    _attr_icon = "mdi:radar"
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_radar_fault"
-
-    @property
-    def is_on(self) -> bool | None:
-        val = self._abnormal().get("radar_state")
-        return self._fault(val)
-
-
-class YarboPowerFaultSensor(_YarboFaultBinarySensorBase):
-    """Power fault indicator."""
-
-    _attr_name = "Power Fault"
-    _attr_icon = "mdi:lightning-bolt"
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_power_fault"
-
-    @property
-    def is_on(self) -> bool | None:
-        val = self._abnormal().get("power_fault")
-        # -1 = "not applicable" / nominal; treat only >0 as fault
-        if val is None:
-            return None
-        if not isinstance(val, (int, float)):
-            return False
-        return int(val) > 0

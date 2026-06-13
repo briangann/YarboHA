@@ -26,12 +26,82 @@ This changelog follows the [Keep a Changelog](https://keepachangelog.com/en/1.0.
 
 ---
 
+## [0.5.1] - 2026-06-13
+
+Upstream sync from YarboInc monorepo (commits b009815a + 37edd28b).
+
+### New
+- **WebSocket map API** — GeoJSON zone map served on demand via `yarbo/map_zones` WebSocket command instead of entity attributes, avoiding Home Assistant's 16 KB attribute limit
+- **Entity filters** — `entity_filters.py` provides `control_matches_device()` to suppress head-specific controls when the wrong attachment is fitted
+
+### Changed
+- **Config-driven sensor and binary sensor** — all ~20 individual sensor classes replaced by `YarboConfigSensor` / `YarboConfigBinarySensor` driven by SDK field definitions; adds `battery_capacity` rescaling (firmware caps at 95%, rescaled to 100%), `charging_power` computed from voltage × current, and new `custom_extractor` variants
+- **Coordinator rewrite** — storage persistence via `homeassistant.helpers.storage`, keep-awake mode policy (`CONF_KEEP_AWAKE_MODE`: always / docked / off), typed SDK dispatch via `BoundDevice` API with raw MQTT fallback
+- **Button, number, select, switch** — route commands through typed SDK `bound_device()` methods where available; fall back to raw MQTT
+- **SDK bumped** to `yarbo-data-sdk>=0.2.1` (adds `BoundDevice`, `_ensure_mqtt_for`, dual-broker migration; removes `mqtt_subscribe`/`mqtt_unsubscribe`)
+- `manifest.json` adds `websocket_api` HA dependency
+
+### Fixed (our additions on top of upstream)
+- All `_client` Optional None guards in button, number, select, switch — upstream code accessed `_client` without checking for `None` in fallback branches (silent runtime failure)
+- `number.py` — `BoundCoreModule.publish_command(topic, payload)` and `CoreModule.publish_command(sn, topic, payload, type_id)` have different arg counts; upstream ternary was passing wrong args to the bound path
+- `device_tracker.py` — `SourceType` imported from correct `.const` submodule
+- `config_flow.py` — `str | None` title coerced to `str`; `context["entry_id"]` safe-accessed via `.get()`
+
+---
+
 ## [Unreleased]
 
 ### Documentation
-- **AGENTS.md accuracy fixes** — corrected three inaccurate claims: `device_tracker.py` uses `_maybe_write_state()` (not `recorder_excluded_attributes`) to suppress GPS spam; `button.py` has 9 button classes (not 2); `sensor.py` has 22 sensor classes grouped by base class (not 8).
+- **AGENTS.md** — updated to reflect current architecture (domain `yarbo`, config-driven entities, SDK 0.2.1, heartbeat timeout 90s, test coverage notes)
+
+### Pre-merge review findings for `feat/upstream-sync-0.3.3`
+
+The following issues were identified during code review and must be resolved or explicitly accepted before merging.
+
+#### 🔴 Regressions (must fix)
+
+- **`device_tracker.py` — recorder GPS spam** `_maybe_write_state()` dedup guard removed,
+  replaced with bare `async_write_ha_state()`. MQTT heartbeats fire every ~5s; without
+  the guard the recorder writes an identical GPS row every heartbeat when the device is
+  parked. Was an intentional performance fix. Must revert or reimplement.
+
+- **`map_sensor.py` — breaking attribute removal** `"geojson"` key removed from
+  `extra_state_attributes`; replaced with `"feature_count"`. Existing Lovelace map cards
+  or automations reading `state_attr(..., "geojson")` break silently on upgrade. GeoJSON
+  moved to the `yarbo/map_zones` WebSocket API. Needs migration note and/or deprecation
+  passthrough.
+
+#### 🟡 Decisions needed before merge
+
+- **`button.py` — wireless-charging check reversed** Check 4 in `YarboStartPlanButton`
+  now blocks plan start when `BatteryMSG.status > 1`. Previous version explicitly
+  documented: *"Wireless charging is NOT a blocker — the robot undocks itself."* Upstream
+  reversed this without explanation. Needs device-confirmed answer: can the robot
+  autonomously undock from wireless charging when a plan is issued?
+
+- **`select.py` — plan select lost running-plan reflection** `YarboPlanSelect.current_option`
+  no longer resolves the active plan from `coordinator.plan_feedback` (by matching
+  `areaIds`). Select now shows only the user's last manual selection while a plan is
+  running. Intentional simplification or oversight?
+
+- **`__init__.py` — `yarbo.set_nogozone_enabled` service removed** No deprecation stub,
+  no CHANGELOG entry. Automations using this service break silently on upgrade.
+  Decision: add a one-version stub that raises `ServiceValidationError` with a migration
+  message, or document explicitly as a breaking removal.
+
+#### 🟢 Low impact / verify before close
+
+- **`binary_sensor.py` — `YarboOnlineBinarySensor.extra_state_attributes` removed**
+  Wheel speed, fused odometry, ultrasonic distances, impact & rain raw values were
+  exposed here. Verify these are now available through config-driven sensor entities;
+  if not, some dashboard cards silently lose attributes.
+
+- **`coordinator.py` — plan-completion auto-refresh removed** Detecting
+  `on_going_planning == 5` and auto-calling `_async_fetch_plans` is gone. Plan list
+  won't refresh after a run completes without a manual trigger.
 
 ---
+
 
 ## [0.4.11] - 2026-05-30
 
