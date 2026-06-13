@@ -1233,7 +1233,13 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         # Device class
         if field_def.value_map:
             self._attr_device_class = SensorDeviceClass.ENUM
-            self._attr_options = list(dict.fromkeys(field_def.value_map.values()))
+            options = list(dict.fromkeys(field_def.value_map.values()))
+            # keep — planning_status returns head-type verbs (Mowing etc.) not in SDK value_map
+            if field_def.custom_extractor == "planning_status":
+                for verb in _HEAD_TYPE_VERB.values():
+                    if verb not in options:
+                        options.append(verb)
+            self._attr_options = options
         elif field_def.device_class:
             try:
                 self._attr_device_class = SensorDeviceClass(field_def.device_class)
