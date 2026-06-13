@@ -98,10 +98,16 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self.devices: list = []
         self._gps_refs: dict[str, dict] = {}
         self._map_data: dict[str, dict] = {}
-        self._map_raw: dict[str, dict] = {}
+        self._map_raw: dict[
+            str, dict
+        ] = {}  # keep — needed by async_set_nogozone_enabled
         self._plan_data: dict[str, list[dict]] = {}
-        self._plan_feedback: dict[str, dict] = {}
-        self._cloud_points: dict[str, dict] = {}
+        self._plan_feedback: dict[
+            str, dict
+        ] = {}  # keep — restored: plan select current_option
+        self._cloud_points: dict[
+            str, dict
+        ] = {}  # keep — restored: dynamic obstacles in map
         self._last_heartbeat: dict[str, float] = {}
         self._user_standby: dict[str, bool] = {}
         # Online-recovery bookkeeping for the request/response data a device can
@@ -222,6 +228,9 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         except YarboSDKError as err:
             _LOGGER.warning("MQTT connection failed: %s", err)
 
+        # keep — intentional: plan_feedback and cloud_points subscriptions restored;
+        # upstream removed them but we need plan_feedback for select.current_option and
+        # cloud_points for dynamic obstacle overlay in yarbo/map_zones WebSocket response.
         # Subscribe to data_feedback and plan_feedback for selected devices
         for device in self.devices:
             try:
@@ -869,6 +878,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         if self.data is not None:
             self.async_set_updated_data(self.data)
 
+    # keep — intentional: restored from upstream removal; no-go zone toggling not in SDK
     async def async_set_nogozone_enabled(self, sn: str, zone_id, enabled: bool) -> None:
         """Toggle a single no-go zone's enable flag and persist it via MQTT."""
         from homeassistant.exceptions import HomeAssistantError

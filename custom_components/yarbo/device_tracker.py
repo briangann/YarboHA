@@ -45,7 +45,11 @@ class YarboDeviceTracker(CoordinatorEntity[YarboDataUpdateCoordinator], TrackerE
         self._attr_unique_id = f"{device.sn}_device_tracker"
         self._computed_lat: float | None = None
         self._computed_lon: float | None = None
-        self._last_position: tuple = (None, None, False)
+        self._last_position: tuple = (
+            None,
+            None,
+            False,
+        )  # keep — prevents GPS recorder spam
 
     @property
     def device_info(self) -> DeviceInfo:

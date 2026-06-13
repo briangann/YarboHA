@@ -16,7 +16,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
 
-# SDK marks these disabled_by_default conservatively; we want them on.
+# keep — intentional: SDK marks these disabled_by_default conservatively; all are
+# useful diagnostic sensors that should be on out of the box for this integration.
 _FORCE_ENABLED: frozenset[str] = frozenset(
     f"BatteryMSG.temperature{i}" for i in range(1, 7)
 ) | {

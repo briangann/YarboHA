@@ -54,6 +54,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
+# keep — intentional: service restored; upstream removed without deprecation
 def _register_set_nogozone_enabled(hass: HomeAssistant) -> None:
     """Register the yarbo.set_nogozone_enabled service (idempotent)."""
     if hass.services.has_service(DOMAIN, "set_nogozone_enabled"):

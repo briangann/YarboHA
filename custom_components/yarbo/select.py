@@ -194,6 +194,8 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
         }
         return list(self._plan_id_map.keys())
 
+    # keep — intentional: resolves plan started from mobile app via plan_feedback areaIds;
+    # upstream removed plan_feedback entirely, leaving select blind to app-started plans
     @property
     def current_option(self) -> str | None:
         """Resolve running plan name from plan_feedback areaIds, falling back to selected plan."""

@@ -297,6 +297,9 @@ class YarboStartPlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], Button
         if plan_id is None:
             raise HomeAssistantError("Cannot start plan: no plan selected")
 
+        # keep — intentional: wireless charging is NOT a blocker (robot autonomously undocks
+        # when a plan is issued, matching app behaviour). Only wired charging blocks — a
+        # physical cable genuinely prevents the robot from moving.
         # Check 3: Not wired charging (BodyMsg.rechargeState: 1=wired charging, 3=wired locked)
         recharge_state = (data.get("BodyMsg") or {}).get("rechargeState")
         if isinstance(recharge_state, (int, float)) and recharge_state in (1, 3):

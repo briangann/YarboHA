@@ -39,7 +39,8 @@ async def async_setup_entry(
             if field_def.entity_type == "binary_sensor":
                 entities.append(YarboConfigBinarySensor(coordinator, device, field_def))
 
-        # Fault sensors — read from abnormal_msg / RunningStatusMSG; not in SDK field defs
+        # keep — intentional: fault sensors read from abnormal_msg / RunningStatusMSG;
+        # not in SDK field definitions, restored for automation/alerting use cases
         entities.append(YarboImpactBinarySensor(coordinator, device))
         entities.append(YarboLeftMotorFaultSensor(coordinator, device))
         entities.append(YarboRightMotorFaultSensor(coordinator, device))
@@ -85,8 +86,8 @@ class YarboOnlineBinarySensor(
     def extra_state_attributes(self) -> dict:
         """Raw telemetry fields not yet covered by config-driven sensor entities.
 
-        Preserved for backward compatibility while upstream SDK field definitions
-        are extended to cover these fields.
+        keep — intentional: preserved for backward compatibility while upstream SDK
+        field definitions are extended to cover these fields.
         """
         data = (self.coordinator.data or {}).get(self._device.sn, {}) or {}
         attrs: dict = {}
@@ -154,8 +155,8 @@ class YarboConfigBinarySensor(
         self._attr_name = field_def.name
         self._attr_entity_registry_enabled_default = field_def.enabled_by_default
 
-        # "Charging" is misleading alongside "Recharging Status" which also
-        # uses "Charging" as a state value. Override to clarify meaning.
+        # keep — intentional modification for readability: "Charging" is misleading
+        # alongside "Recharging Status" which also uses "Charging" as a state value.
         if field_def.custom_extractor == "charging_threshold":
             self._attr_name = "Active Charge"
 
