@@ -15,8 +15,6 @@ concurrency:
 
 env:
   COMPONENT: custom_components/yarbo
-  HA_BRANCH: "2026.5.4"
-  HA_CLONE: /tmp/ha-core
 
 jobs:
   lint-and-test:
@@ -35,37 +33,26 @@ jobs:
             requirements.txt
             requirements_dev.txt
 
-      - name: "Cache Home Assistant core clone"
-        id: cache-ha-core
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ${{ env.HA_CLONE }}
-          key: ha-core-${{ env.HA_BRANCH }}
-
-      - name: "Shallow clone Home Assistant core"
-        if: steps.cache-ha-core.outputs.cache-hit != 'true'
-        run: git clone --depth 1 --branch ${{ env.HA_BRANCH }} https://github.com/home-assistant/core.git ${{ env.HA_CLONE }}
-
       - name: "Install dependencies"
         run: |
-          pip install --no-deps ${{ env.HA_CLONE }}
-          pip install voluptuous
-          pip install -r requirements_dev.txt
+          python -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r requirements_dev.txt
 
       - name: "Run ruff lint"
-        run: ruff check ${{ env.COMPONENT }}/
+        run: .venv/bin/ruff check ${{ env.COMPONENT }}/
 
       - name: "Run ruff format check"
-        run: ruff format --check ${{ env.COMPONENT }}/
+        run: .venv/bin/ruff format --check ${{ env.COMPONENT }}/
 
       - name: "Run pyright"
-        run: pyright ${{ env.COMPONENT }}/
+        run: .venv/bin/pyright ${{ env.COMPONENT }}/
 
       - name: "Run tests with coverage"
-        run: pytest --tb=short --cov=${{ env.COMPONENT }} --cov-report=term-missing
+        run: .venv/bin/pytest --tb=short --cov=${{ env.COMPONENT }} --cov-report=term-missing
 
       - name: "Run bandit security scan"
-        run: bandit -c pyproject.toml -r ${{ env.COMPONENT }}/
+        run: .venv/bin/bandit -c pyproject.toml -r ${{ env.COMPONENT }}/
 
       - name: "Compile check"
-        run: python -m compileall ${{ env.COMPONENT }}/ -q
+        run: .venv/bin/python -m compileall ${{ env.COMPONENT }}/ -q

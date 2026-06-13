@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import logging
 
-from yarbo_robot_sdk.device_helpers import convert_local_to_gps, extract_field
-
 from homeassistant.components.device_tracker.const import SourceType
-from homeassistant.components.device_tracker.config_entry import TrackerEntity
+from homeassistant.components.device_tracker.entity import TrackerEntity  # type: ignore[attr-defined]
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -47,28 +45,11 @@ class YarboDeviceTracker(CoordinatorEntity[YarboDataUpdateCoordinator], TrackerE
         self._attr_unique_id = f"{device.sn}_device_tracker"
         self._computed_lat: float | None = None
         self._computed_lon: float | None = None
-        # Suppress no-op state writes. MQTT pushes heartbeats every ~5s, and
-        # without this cache, _handle_coordinator_update writes a duplicate
-        # state row each heartbeat even when the mower is parked. With this
-        # guard, the recorder only records actual position/availability
-        # changes. See PR upstream at YarboInc/YarboHA.
-        self._last_written_lat: float | None = None
-        self._last_written_lon: float | None = None
-        self._last_written_available: bool | None = None
-
-    def _maybe_write_state(self) -> None:
-        """Write state to HA only when position or availability actually changed."""
-        current_available = self.available
-        if (
-            self._computed_lat == self._last_written_lat
-            and self._computed_lon == self._last_written_lon
-            and current_available == self._last_written_available
-        ):
-            return
-        self._last_written_lat = self._computed_lat
-        self._last_written_lon = self._computed_lon
-        self._last_written_available = current_available
-        self.async_write_ha_state()
+        self._last_position: tuple = (
+            None,
+            None,
+            False,
+        )  # keep — prevents GPS recorder spam
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -113,6 +94,7 @@ class YarboDeviceTracker(CoordinatorEntity[YarboDataUpdateCoordinator], TrackerE
         attrs["rtk_fix_type"] = gps_ref.get("rtkFixType")
 
         device_data = (self.coordinator.data or {}).get(self._device.sn, {})
+        from yarbo_robot_sdk.device_helpers import extract_field
 
         attrs["position_x"] = extract_field(device_data, "CombinedOdom.x")
         attrs["position_y"] = extract_field(device_data, "CombinedOdom.y")
@@ -121,42 +103,38 @@ class YarboDeviceTracker(CoordinatorEntity[YarboDataUpdateCoordinator], TrackerE
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Recompute GPS position from CombinedOdom + GPS reference.
-
-        State writes are gated through _maybe_write_state to skip no-op
-        updates (which heartbeat-driven MQTT pushes would otherwise produce
-        every ~5s, even when the mower has not moved).
-        """
+        """Recompute GPS position from CombinedOdom + GPS reference."""
         self._computed_lat = None
         self._computed_lon = None
 
         gps_ref = self.coordinator.gps_refs.get(self._device.sn)
-        if gps_ref is None or gps_ref.get("rtkFixType") != 1:
-            self._maybe_write_state()
+        if gps_ref is not None and gps_ref.get("rtkFixType") == 1:
+            ref = gps_ref.get("ref", {})
+            ref_lat = ref.get("latitude")
+            ref_lon = ref.get("longitude")
+            if ref_lat is not None and ref_lon is not None:
+                device_data = (self.coordinator.data or {}).get(self._device.sn, {})
+                from yarbo_robot_sdk.device_helpers import (
+                    extract_field,
+                    convert_local_to_gps,
+                )
+
+                local_x = extract_field(device_data, "CombinedOdom.x")
+                local_y = extract_field(device_data, "CombinedOdom.y")
+                if local_x is not None and local_y is not None:
+                    try:
+                        self._computed_lat, self._computed_lon = convert_local_to_gps(
+                            ref_lat, ref_lon, float(local_x), float(local_y)
+                        )
+                    except (ValueError, TypeError) as err:
+                        _LOGGER.debug(
+                            "Coordinate conversion failed for %s: %s",
+                            self._device.sn,
+                            err,
+                        )
+
+        position = (self._computed_lat, self._computed_lon, self.available)
+        if position == self._last_position:
             return
-
-        ref = gps_ref.get("ref", {})
-        ref_lat = ref.get("latitude")
-        ref_lon = ref.get("longitude")
-        if ref_lat is None or ref_lon is None:
-            self._maybe_write_state()
-            return
-
-        device_data = (self.coordinator.data or {}).get(self._device.sn, {})
-
-        local_x = extract_field(device_data, "CombinedOdom.x")
-        local_y = extract_field(device_data, "CombinedOdom.y")
-        if local_x is None or local_y is None:
-            self._maybe_write_state()
-            return
-
-        try:
-            self._computed_lat, self._computed_lon = convert_local_to_gps(
-                ref_lat, ref_lon, float(local_x), float(local_y)
-            )
-        except (ValueError, TypeError) as err:
-            _LOGGER.debug(
-                "Coordinate conversion failed for %s: %s", self._device.sn, err
-            )
-
-        self._maybe_write_state()
+        self._last_position = position
+        self.async_write_ha_state()

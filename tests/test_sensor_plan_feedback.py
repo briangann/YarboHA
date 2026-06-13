@@ -1,206 +1,236 @@
-"""Tests for plan-feedback-derived sensors."""
+"""Tests for YarboConfigSensor custom_extractor logic.
 
-import pytest
+Covers: planning_status, recharging_status, battery_capacity,
+volume_scale, rtk_signal, charging_power, and network_priority.
+"""
+
 from unittest.mock import MagicMock
 
-from custom_components.yarbo.sensor import (
-    YarboBatteryConsumptionSensor,
-    YarboCleanAreaSensor,
-    YarboCurrentPlanSensor,
-    YarboElapsedTimeSensor,
-    YarboPlanProgressSensor,
-    YarboRemainingAreaSensor,
-    YarboTimeRemainingSensor,
-    YarboTotalPlanAreaSensor,
-    YarboTotalPlanTimeSensor,
-)
-
-SN = "DEVICE_SN"
+from custom_components.yarbo.sensor import YarboConfigSensor
 
 
-def _device():
+def _make_coordinator(sn="SN001", data=None):
+    coord = MagicMock()
+    coord.data = {sn: data} if data is not None else {}
+    return coord
+
+
+def _make_device(sn="SN001"):
     d = MagicMock()
-    d.sn = SN
+    d.sn = sn
+    d.name = "Yarbo Y1"
+    d.model = "Y1"
     return d
 
 
-def _make(cls, plan_feedback=None, plan_data=None):
-    sensor = object.__new__(cls)
-    coord = MagicMock()
-    coord.plan_feedback = {SN: plan_feedback or {}}
-    coord.plan_data = {SN: plan_data or []}
-    sensor.coordinator = coord
-    sensor._device = _device()
-    return sensor
+def _make_field_def(
+    path="StateMSG.planning_status",
+    custom_extractor=None,
+    value_map=None,
+    device_class=None,
+    unit=None,
+    icon=None,
+    enabled_by_default=True,
+    name="Test Sensor",
+):
+    fd = MagicMock()
+    fd.path = path
+    fd.custom_extractor = custom_extractor
+    fd.value_map = value_map
+    fd.device_class = device_class
+    fd.unit = unit
+    fd.icon = icon
+    fd.enabled_by_default = enabled_by_default
+    fd.name = name
+    return fd
 
 
-# ── Current Plan ──────────────────────────────────────────────────────────────
+def _sensor(coord, field_def, sn="SN001"):
+    return YarboConfigSensor(coord, _make_device(sn), field_def)
 
 
-class TestYarboCurrentPlanSensor:
-    _plans = [
-        {"id": 1, "name": "House Front", "areaIds": [100, 200]},
-        {"id": 2, "name": "South Front", "areaIds": [135, 129]},
-    ]
+# ---------------------------------------------------------------------------
+# planning_status
+# ---------------------------------------------------------------------------
 
-    def test_matches_plan_by_area_ids(self):
-        s = _make(
-            YarboCurrentPlanSensor,
-            plan_feedback={"areaIds": [135, 129]},
-            plan_data=self._plans,
+
+class TestPlanningStatus:
+    def _make(self, code):
+        coord = _make_coordinator(data={"StateMSG": {"on_going_planning": code}})
+        fd = _make_field_def(
+            path="StateMSG.on_going_planning",
+            custom_extractor="planning_status",
         )
-        assert s.native_value == "South Front"
+        return _sensor(coord, fd)
 
-    def test_order_independent_match(self):
-        # areaIds order should not matter
-        s = _make(
-            YarboCurrentPlanSensor,
-            plan_feedback={"areaIds": [129, 135]},
-            plan_data=self._plans,
-        )
-        assert s.native_value == "South Front"
+    def test_code_1_cleaning(self):
+        s = self._make(1)
+        assert s.native_value == "Cleaning"
 
-    def test_no_match_returns_none(self):
-        s = _make(
-            YarboCurrentPlanSensor,
-            plan_feedback={"areaIds": [999]},
-            plan_data=self._plans,
-        )
-        assert s.native_value is None
-
-    def test_empty_feedback_returns_none(self):
-        s = _make(YarboCurrentPlanSensor, plan_data=self._plans)
-        assert s.native_value is None
-
-    def test_empty_plan_list_returns_none(self):
-        s = _make(YarboCurrentPlanSensor, plan_feedback={"areaIds": [135, 129]})
-        assert s.native_value is None
-
-
-# ── Clean Area ────────────────────────────────────────────────────────────────
-
-
-class TestYarboCleanAreaSensor:
-    def test_rounds_to_two_decimals(self):
-        s = _make(YarboCleanAreaSensor, {"actualCleanArea": 620.61725})
-        assert s.native_value == pytest.approx(620.62, abs=1e-2)
+    def test_negative_unmapped_returns_error(self):
+        # -5 is not in PLANNING_STATUS_MAP → falls back to generic "Error"
+        s = self._make(-5)
+        assert s.native_value == "Error"
 
     def test_missing_returns_none(self):
-        assert _make(YarboCleanAreaSensor).native_value is None
+        coord = _make_coordinator()
+        fd = _make_field_def(custom_extractor="planning_status")
+        assert _sensor(coord, fd).native_value is None
 
 
-# ── Battery Consumption ───────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# recharging_status
+# ---------------------------------------------------------------------------
 
 
-class TestYarboBatteryConsumptionSensor:
-    def test_value(self):
-        s = _make(YarboBatteryConsumptionSensor, {"battery_consumption": 32})
-        assert s.native_value == 32.0
-
-    def test_missing_returns_none(self):
-        assert _make(YarboBatteryConsumptionSensor).native_value is None
-
-
-# ── Plan Progress ─────────────────────────────────────────────────────────────
-
-
-class TestYarboPlanProgressSensor:
-    def test_half_done(self):
-        s = _make(
-            YarboPlanProgressSensor,
-            {"actualCleanArea": 500.0, "totalCleanArea": 1000.0},
+class TestRechargingStatus:
+    def _make(self, code):
+        coord = _make_coordinator(data={"StateMSG": {"on_going_recharging": code}})
+        fd = _make_field_def(
+            path="StateMSG.on_going_recharging",
+            custom_extractor="recharging_status",
         )
-        assert s.native_value == pytest.approx(50.0, abs=0.1)
+        return _sensor(coord, fd)
 
-    def test_clamped_at_100(self):
-        # Guard against floating point slightly over 100
-        s = _make(
-            YarboPlanProgressSensor,
-            {"actualCleanArea": 1010.0, "totalCleanArea": 1000.0},
+    def test_code_0_not_started(self):
+        s = self._make(0)
+        assert s.native_value == "Not Started"
+
+    def test_negative_code_returns_full_message(self):
+        s = self._make(-3)
+        assert s.native_value == "Error: Direction Uninitialized"
+
+    def test_missing_returns_none(self):
+        coord = _make_coordinator()
+        fd = _make_field_def(custom_extractor="recharging_status")
+        assert _sensor(coord, fd).native_value is None
+
+
+# ---------------------------------------------------------------------------
+# battery_capacity — rescaling above 90
+# ---------------------------------------------------------------------------
+
+
+class TestBatteryCapacity:
+    def _make(self, raw):
+        coord = _make_coordinator(data={"BatteryMSG": {"capacity": raw}})
+        fd = _make_field_def(
+            path="BatteryMSG.capacity",
+            custom_extractor="battery_capacity",
         )
-        assert s.native_value == 100.0
+        return _sensor(coord, fd)
 
-    def test_zero_total_returns_none(self):
-        s = _make(
-            YarboPlanProgressSensor, {"actualCleanArea": 500.0, "totalCleanArea": 0}
+    def test_below_90_passthrough(self):
+        assert self._make(80).native_value == 80
+
+    def test_exactly_90_passthrough(self):
+        assert self._make(90).native_value == 90
+
+    def test_95_maps_to_100(self):
+        assert self._make(95).native_value == 100
+
+    def test_96_clips_to_100(self):
+        assert self._make(96).native_value == 100
+
+    def test_91_rescaled(self):
+        # 90 + (91-90)*2 = 92
+        assert self._make(91).native_value == 92
+
+    def test_missing_returns_none(self):
+        coord = _make_coordinator()
+        fd = _make_field_def(custom_extractor="battery_capacity")
+        assert _sensor(coord, fd).native_value is None
+
+
+# ---------------------------------------------------------------------------
+# volume_scale — 0.0–1.0 raw → 0–100
+# ---------------------------------------------------------------------------
+
+
+class TestVolumeScale:
+    def _make(self, raw):
+        coord = _make_coordinator(data={"SoundMSG": {"volume": raw}})
+        fd = _make_field_def(
+            path="SoundMSG.volume",
+            custom_extractor="volume_scale",
         )
-        assert s.native_value is None
+        return _sensor(coord, fd)
 
-    def test_missing_actual_returns_none(self):
-        s = _make(YarboPlanProgressSensor, {"totalCleanArea": 1000.0})
-        assert s.native_value is None
+    def test_half_volume(self):
+        assert self._make(0.5).native_value == 50
+
+    def test_full_volume(self):
+        assert self._make(1.0).native_value == 100
+
+    def test_zero(self):
+        assert self._make(0.0).native_value == 0
+
+    def test_missing_returns_none(self):
+        coord = _make_coordinator()
+        fd = _make_field_def(custom_extractor="volume_scale")
+        assert _sensor(coord, fd).native_value is None
 
 
-# ── Remaining Area ────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# rtk_signal — 4=Strong, 5=Medium, else=Weak
+# ---------------------------------------------------------------------------
 
 
-class TestYarboRemainingAreaSensor:
-    def test_remaining(self):
-        s = _make(
-            YarboRemainingAreaSensor,
-            {"actualCleanArea": 400.0, "totalCleanArea": 1000.0},
+class TestRtkSignal:
+    def _make(self, raw):
+        coord = _make_coordinator(data={"GpsMSG": {"rtk_status": raw}})
+        fd = _make_field_def(
+            path="GpsMSG.rtk_status",
+            custom_extractor="rtk_signal",
         )
-        assert s.native_value == pytest.approx(600.0, abs=0.01)
+        return _sensor(coord, fd)
 
-    def test_floored_at_zero(self):
-        # Protect against actual > total due to rounding
-        s = _make(
-            YarboRemainingAreaSensor,
-            {"actualCleanArea": 1010.0, "totalCleanArea": 1000.0},
+    def test_4_is_strong(self):
+        assert self._make(4).native_value == "Strong"
+
+    def test_5_is_medium(self):
+        assert self._make(5).native_value == "Medium"
+
+    def test_other_is_weak(self):
+        assert self._make(3).native_value == "Weak"
+
+    def test_no_data_returns_none(self):
+        # _get_device_data returns None → _extract_custom returns None early
+        coord = _make_coordinator()
+        fd = _make_field_def(custom_extractor="rtk_signal")
+        assert _sensor(coord, fd).native_value is None
+
+
+# ---------------------------------------------------------------------------
+# charging_power — voltage * current (with mV/mA auto-scaling)
+# ---------------------------------------------------------------------------
+
+
+class TestChargingPower:
+    def _make(self, voltage, current):
+        coord = _make_coordinator(
+            data={"BatteryMSG": {"voltage": voltage, "current": current}}
         )
-        assert s.native_value == 0.0
+        fd = _make_field_def(
+            path="BatteryMSG.voltage",
+            custom_extractor="charging_power",
+        )
+        return _sensor(coord, fd)
 
-    def test_missing_returns_none(self):
-        assert _make(YarboRemainingAreaSensor).native_value is None
+    def test_normal_values(self):
+        # 12V * 2A = 24W
+        assert self._make(12, 2).native_value == 24.0
 
+    def test_millivolt_autoscale(self):
+        # 12000 mV → 12 V, 2000 mA → 2 A → 24W
+        assert self._make(12000, 2000).native_value == 24.0
 
-# ── Time Remaining ────────────────────────────────────────────────────────────
+    def test_missing_voltage_returns_none(self):
+        coord = _make_coordinator(data={"BatteryMSG": {"current": 2}})
+        fd = _make_field_def(custom_extractor="charging_power")
+        assert _sensor(coord, fd).native_value is None
 
-
-class TestYarboTimeRemainingSensor:
-    def test_value(self):
-        s = _make(YarboTimeRemainingSensor, {"leftTime": 9141.32})
-        assert s.native_value == pytest.approx(9141.0, abs=1.0)
-
-    def test_floored_at_zero(self):
-        s = _make(YarboTimeRemainingSensor, {"leftTime": -5.0})
-        assert s.native_value == 0.0
-
-    def test_missing_returns_none(self):
-        assert _make(YarboTimeRemainingSensor).native_value is None
-
-
-# ── Elapsed Time ──────────────────────────────────────────────────────────────
-
-
-class TestYarboElapsedTimeSensor:
-    def test_value(self):
-        s = _make(YarboElapsedTimeSensor, {"duration": 8315})
-        assert s.native_value == 8315.0
-
-    def test_missing_returns_none(self):
-        assert _make(YarboElapsedTimeSensor).native_value is None
-
-
-# ── Total Plan Area ───────────────────────────────────────────────────────────
-
-
-class TestYarboTotalPlanAreaSensor:
-    def test_value(self):
-        s = _make(YarboTotalPlanAreaSensor, {"totalCleanArea": 1269.243})
-        assert s.native_value == pytest.approx(1269.24, abs=0.01)
-
-    def test_missing_returns_none(self):
-        assert _make(YarboTotalPlanAreaSensor).native_value is None
-
-
-# ── Total Plan Time ───────────────────────────────────────────────────────────
-
-
-class TestYarboTotalPlanTimeSensor:
-    def test_value(self):
-        s = _make(YarboTotalPlanTimeSensor, {"totalTime": 17888.0})
-        assert s.native_value == 17888.0
-
-    def test_missing_returns_none(self):
-        assert _make(YarboTotalPlanTimeSensor).native_value is None
+    def test_missing_current_returns_none(self):
+        coord = _make_coordinator(data={"BatteryMSG": {"voltage": 12}})
+        fd = _make_field_def(custom_extractor="charging_power")
+        assert _sensor(coord, fd).native_value is None

@@ -3,39 +3,60 @@
 from __future__ import annotations
 
 import logging
-from yarbo_robot_sdk import get_field_definitions
-from yarbo_robot_sdk.device_helpers import (
-    convert_local_to_gps,
-    extract_active_network,
-    extract_field,
-)
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
 )
-from homeassistant.const import UnitOfTime
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from yarbo_robot_sdk.device_helpers import convert_local_to_gps
 
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
-from .map_sensor import YarboMapSensor
 
 _LOGGER = logging.getLogger(__name__)
 
+# keep — intentional: SDK marks these disabled_by_default conservatively; all are
+# useful diagnostic sensors that should be on out of the box for this integration.
+_FORCE_ENABLED: frozenset[str] = frozenset(
+    f"BatteryMSG.temperature{i}" for i in range(1, 7)
+) | {
+    "BatteryMSG.voltage",
+    "BatteryMSG.current",
+    "__computed__.charging_power",
+    "halow_status.strength",
+    "StateMSG.obstacle",
+    "RunningStatusMSG.rain_sensor_data",
+    "CombinedOdom.x",
+    "CombinedOdom.y",
+    "CombinedOdom.phi",
+    "RTKMSG.sat_num",
+}
+
 # Sensor device_classes that represent a numeric measurement
-MEASUREMENT_CLASSES = {"battery", "temperature", "humidity", "distance", "pressure"}
+MEASUREMENT_CLASSES = {
+    "battery",
+    "current",
+    "distance",
+    "duration",
+    "humidity",
+    "power",
+    "pressure",
+    "signal_strength",
+    "temperature",
+    "voltage",
+}
 
 # on_going_planning status code → display text
-# Status 1 ("actively working") is overridden at runtime based on head type.
 PLANNING_STATUS_MAP: dict[int, str] = {
     0: "Not Started",
-    1: "Working",  # unreachable — code==1 is intercepted by _PLANNING_ACTIVE_VERB above
+    1: "Cleaning",
     2: "Calculating Route",
     3: "Heading to Area",
     5: "Completed",
@@ -80,16 +101,6 @@ RECHARGING_STATUS_MAP: dict[int, str] = {
     -20: "Error: Outside Mapped Area",
 }
 
-# Head type → active-work verb (used when on_going_planning == 1)
-_PLANNING_ACTIVE_VERB: dict[int, str] = {
-    0: "Running",  # No head
-    1: "Blowing Snow",  # Snow Blower
-    2: "Blowing",  # Blower
-    3: "Mowing",  # Mower
-    4: "Working",  # Smart Cover
-    5: "Mowing",  # Mower Pro
-}
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -97,6 +108,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Yarbo sensors dynamically from SDK field definitions."""
+    from yarbo_robot_sdk import get_field_definitions
 
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
@@ -109,9 +121,14 @@ async def async_setup_entry(
             if field_def.entity_type == "sensor":
                 entities.append(YarboConfigSensor(coordinator, device, field_def))
 
-    # Add map zone sensors, plan feedback sensors, and raw telemetry sensors
+    # Add map zone sensors
+    from .map_sensor import YarboMapSensor
+
     for device in coordinator.devices:
         entities.append(YarboMapSensor(coordinator, device))
+
+        # keep — intentional: plan feedback sensors restored; upstream removed these
+        # but they are essential for dashboard monitoring of plan execution.
         entities.append(YarboPlanPathSensor(coordinator, device))
         entities.append(YarboCurrentPlanSensor(coordinator, device))
         entities.append(YarboCleanAreaSensor(coordinator, device))
@@ -122,18 +139,6 @@ async def async_setup_entry(
         entities.append(YarboElapsedTimeSensor(coordinator, device))
         entities.append(YarboTotalPlanAreaSensor(coordinator, device))
         entities.append(YarboTotalPlanTimeSensor(coordinator, device))
-        # Raw telemetry
-        entities.append(YarboSpeedSensor(coordinator, device))
-        entities.append(YarboOdometryLeftSensor(coordinator, device))
-        entities.append(YarboOdometryRightSensor(coordinator, device))
-        entities.append(YarboOdomConfidenceSensor(coordinator, device))
-        entities.append(YarboRainSensor(coordinator, device))
-        entities.append(YarboChuteSensor(coordinator, device))  # Snow Blower only
-        entities.append(YarboProximityLeftSensor(coordinator, device))
-        entities.append(YarboProximityCenterSensor(coordinator, device))
-        entities.append(YarboProximityRightSensor(coordinator, device))
-        entities.append(YarboGyroPitchSensor(coordinator, device))
-        entities.append(YarboGyroRollSensor(coordinator, device))
 
     async_add_entities(entities)
 
@@ -152,19 +157,14 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         path_key = field_def.path.replace(".", "_").replace("__", "").lower()
         self._attr_unique_id = f"{device.sn}_{path_key}"
         self._attr_name = field_def.name
-        self._attr_entity_registry_enabled_default = field_def.enabled_by_default
+        self._attr_entity_registry_enabled_default = (
+            True if field_def.path in _FORCE_ENABLED else field_def.enabled_by_default
+        )
 
         # Device class
         if field_def.value_map:
             self._attr_device_class = SensorDeviceClass.ENUM
-            options = list(dict.fromkeys(field_def.value_map.values()))
-            # planning_status returns head-type-aware verbs not in the static
-            # value_map — add them to options so HA's ENUM validator accepts them.
-            if field_def.custom_extractor == "planning_status":
-                for v in _PLANNING_ACTIVE_VERB.values():
-                    if v not in options:
-                        options.append(v)
-            self._attr_options = options
+            self._attr_options = list(dict.fromkeys(field_def.value_map.values()))
         elif field_def.device_class:
             try:
                 self._attr_device_class = SensorDeviceClass(field_def.device_class)
@@ -180,6 +180,13 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
             self._attr_native_unit_of_measurement = field_def.unit
         if field_def.icon:
             self._attr_icon = field_def.icon
+
+        # HA rejects non-numeric states (e.g. firmware sending "") on sensors
+        # whose device_class/unit implies a number, so coerce raw values.
+        self._numeric = bool(
+            not field_def.value_map
+            and (field_def.unit or field_def.device_class in MEASUREMENT_CLASSES)
+        )
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -207,7 +214,20 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
             if isinstance(raw, (int, float)) and raw < 0:
                 return self._field_def.value_map.get("-1")
             return None
+        if self._numeric:
+            return self._as_number(raw)
         return raw
+
+    @staticmethod
+    def _as_number(value):
+        """Coerce a raw value to a number, or None if it isn't one."""
+        if isinstance(value, (int, float)):
+            return value
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            return None
+        return int(num) if num.is_integer() else num
 
     def _extract_custom(self):
         """Handle fields with custom_extractor logic."""
@@ -215,14 +235,53 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         if data is None:
             return None
         if self._field_def.custom_extractor == "network_priority":
+            from yarbo_robot_sdk.device_helpers import (
+                extract_active_network,
+                extract_field,
+            )
+
             route_priority = extract_field(data, self._field_def.path)
             return extract_active_network(route_priority)
+        if self._field_def.custom_extractor == "battery_capacity":
+            from yarbo_robot_sdk.device_helpers import extract_field
+
+            raw = extract_field(data, self._field_def.path)
+            if raw is None:
+                return None
+            # Firmware reports capacity topping out at 95; rescale the top of
+            # the range so a full pack reads 100% (90→90, 91→92, … 95→100).
+            val = int(round(float(raw)))
+            if val <= 90:
+                return val
+            if val >= 95:
+                return 100
+            return 90 + (val - 90) * 2
         if self._field_def.custom_extractor == "volume_scale":
+            from yarbo_robot_sdk.device_helpers import extract_field
+
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
             return int(float(raw) * 100)
+        if self._field_def.custom_extractor == "charging_power":
+            from yarbo_robot_sdk.device_helpers import extract_field
+
+            # TODO: Replace this computed fallback if firmware starts publishing
+            # a real charging power field.
+            voltage = extract_field(data, "BatteryMSG.voltage")
+            current = extract_field(data, "BatteryMSG.current")
+            if voltage is None or current is None:
+                return None
+            voltage = float(voltage)
+            current = float(current)
+            if abs(voltage) > 1000:
+                voltage = voltage / 1000
+            if abs(current) > 1000:
+                current = current / 1000
+            return round(voltage * current, 2)
         if self._field_def.custom_extractor == "rtk_signal":
+            from yarbo_robot_sdk.device_helpers import extract_field
+
             raw = extract_field(data, self._field_def.path)
             # APP logic: 4=Strong, 5=Medium, everything else=Weak
             raw_int = int(raw) if raw is not None else None
@@ -232,21 +291,18 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
                 return "Medium"
             return "Weak"
         if self._field_def.custom_extractor == "planning_status":
+            from yarbo_robot_sdk.device_helpers import extract_field
+
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
             code = int(raw)
-            if code == 1:
-                # "Actively working" — use head-type-specific verb
-                head_type = extract_field(data, "HeadMsg.head_type")
-                try:
-                    return _PLANNING_ACTIVE_VERB.get(int(head_type), "Working")
-                except (TypeError, ValueError):
-                    return "Working"
             if code in PLANNING_STATUS_MAP:
                 return PLANNING_STATUS_MAP[code]
             return "Error" if code < 0 else None
         if self._field_def.custom_extractor == "recharging_status":
+            from yarbo_robot_sdk.device_helpers import extract_field
+
             raw = extract_field(data, self._field_def.path)
             if raw is None:
                 return None
@@ -261,6 +317,7 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         data = self._get_device_data()
         if data is None:
             return None
+        from yarbo_robot_sdk.device_helpers import extract_field
 
         return extract_field(data, field_path)
 
@@ -270,10 +327,26 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         return None
 
 
+# ---------------------------------------------------------------------------
+# Plan feedback sensors — keep: restored from upstream removal
+# All read from coordinator.plan_feedback[sn] (plan_feedback MQTT topic)
+# ---------------------------------------------------------------------------
+
+
+def _plan_device_info(device) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, device.sn)},
+        name=device.name,
+        manufacturer="Yarbo",
+        model=device.model,
+        serial_number=device.sn,
+    )
+
+
 class YarboCurrentPlanSensor(
     CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
 ):
-    """Sensor showing the name of the currently running plan."""
+    """Name of the currently running plan (from plan_feedback areaIds match)."""
 
     _attr_has_entity_name = True
     _attr_name = "Current Plan"
@@ -286,13 +359,7 @@ class YarboCurrentPlanSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device.sn)},
-            name=self._device.name,
-            manufacturer="Yarbo",
-            model=self._device.model,
-            serial_number=self._device.sn,
-        )
+        return _plan_device_info(self._device)
 
     @property
     def native_value(self) -> str | None:
@@ -307,7 +374,7 @@ class YarboCurrentPlanSensor(
 
 
 class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
-    """Sensor showing the actual cleaned area in the current run."""
+    """Actual cleaned area in the current run (m²)."""
 
     _attr_has_entity_name = True
     _attr_name = "Completed Plan Area"
@@ -322,27 +389,20 @@ class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], Sensor
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device.sn)},
-            name=self._device.name,
-            manufacturer="Yarbo",
-            model=self._device.model,
-            serial_number=self._device.sn,
-        )
+        return _plan_device_info(self._device)
 
     @property
     def native_value(self) -> float | None:
-        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
-        val = pf.get("actualCleanArea")
-        if val is None:
-            return None
-        return round(float(val), 2)
+        val = (self.coordinator.plan_feedback.get(self._device.sn) or {}).get(
+            "actualCleanArea"
+        )
+        return round(float(val), 2) if val is not None else None
 
 
 class YarboBatteryConsumptionSensor(
     CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
 ):
-    """Sensor showing battery consumed during the current run."""
+    """Battery consumed during the current run (%)."""
 
     _attr_has_entity_name = True
     _attr_name = "Plan Battery Consumption"
@@ -357,21 +417,14 @@ class YarboBatteryConsumptionSensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device.sn)},
-            name=self._device.name,
-            manufacturer="Yarbo",
-            model=self._device.model,
-            serial_number=self._device.sn,
-        )
+        return _plan_device_info(self._device)
 
     @property
     def native_value(self) -> float | None:
-        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
-        val = pf.get("battery_consumption")
-        if val is None:
-            return None
-        return float(val)
+        val = (self.coordinator.plan_feedback.get(self._device.sn) or {}).get(
+            "battery_consumption"
+        )
+        return float(val) if val is not None else None
 
 
 class _YarboPlanFeedbackBase(
@@ -387,20 +440,14 @@ class _YarboPlanFeedbackBase(
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device.sn)},
-            name=self._device.name,
-            manufacturer="Yarbo",
-            model=self._device.model,
-            serial_number=self._device.sn,
-        )
+        return _plan_device_info(self._device)
 
     def _pf(self) -> dict:
         return self.coordinator.plan_feedback.get(self._device.sn) or {}
 
 
 class YarboPlanProgressSensor(_YarboPlanFeedbackBase):
-    """Sensor showing plan completion as a percentage."""
+    """Plan completion percentage."""
 
     _attr_name = "Plan Progress"
     _attr_icon = "mdi:progress-clock"
@@ -422,7 +469,7 @@ class YarboPlanProgressSensor(_YarboPlanFeedbackBase):
 
 
 class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
-    """Sensor showing remaining area to clean in current run."""
+    """Remaining area to clean in current run (m²)."""
 
     _attr_name = "Remaining Plan Area"
     _attr_icon = "mdi:texture-box"
@@ -444,7 +491,7 @@ class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
 
 
 class YarboTimeRemainingSensor(_YarboPlanFeedbackBase):
-    """Sensor showing estimated time remaining in current plan."""
+    """Estimated time remaining in current plan (seconds)."""
 
     _attr_name = "Estimated Time Remaining"
     _attr_icon = "mdi:timer-outline"
@@ -458,15 +505,12 @@ class YarboTimeRemainingSensor(_YarboPlanFeedbackBase):
 
     @property
     def native_value(self) -> float | None:
-        pf = self._pf()
-        val = pf.get("leftTime")
-        if val is None:
-            return None
-        return round(max(float(val), 0), 0)
+        val = self._pf().get("leftTime")
+        return round(max(float(val), 0), 0) if val is not None else None
 
 
 class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
-    """Sensor showing elapsed time in current plan run."""
+    """Elapsed time in current plan run (seconds)."""
 
     _attr_name = "Plan Elapsed Time"
     _attr_icon = "mdi:timer"
@@ -480,15 +524,12 @@ class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
 
     @property
     def native_value(self) -> float | None:
-        pf = self._pf()
-        val = pf.get("duration")
-        if val is None:
-            return None
-        return round(float(val), 0)
+        val = self._pf().get("duration")
+        return round(float(val), 0) if val is not None else None
 
 
 class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
-    """Sensor showing total area of the current plan."""
+    """Total area of the current plan (m²)."""
 
     _attr_name = "Total Plan Area"
     _attr_icon = "mdi:texture-box"
@@ -501,15 +542,12 @@ class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
 
     @property
     def native_value(self) -> float | None:
-        pf = self._pf()
-        val = pf.get("totalCleanArea")
-        if val is None:
-            return None
-        return round(float(val), 2)
+        val = self._pf().get("totalCleanArea")
+        return round(float(val), 2) if val is not None else None
 
 
 class YarboTotalPlanTimeSensor(_YarboPlanFeedbackBase):
-    """Sensor showing estimated total time for the current plan."""
+    """Estimated total time for the current plan (seconds)."""
 
     _attr_name = "Total Plan Time"
     _attr_icon = "mdi:timer-outline"
@@ -523,278 +561,22 @@ class YarboTotalPlanTimeSensor(_YarboPlanFeedbackBase):
 
     @property
     def native_value(self) -> float | None:
-        pf = self._pf()
-        val = pf.get("totalTime")
-        if val is None:
-            return None
-        return round(float(val), 0)
-
-
-# ---------------------------------------------------------------------------
-# Raw telemetry sensors
-# ---------------------------------------------------------------------------
-# Head type constants
-_HEAD_SNOW_BLOWER = (1,)  # Only snow blower head has a chute
-
-
-class _YarboRawSensorBase(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
-    """Base for sensors reading directly from coordinator.data[sn]."""
-
-    _attr_has_entity_name = True
-    # Subclasses may set to a tuple of allowed head_type ints; None = all.
-    _head_type_required: tuple[int, ...] | None = None
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator)
-        self._device = device
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device.sn)},
-            name=self._device.name,
-            manufacturer="Yarbo",
-            model=self._device.model,
-            serial_number=self._device.sn,
-        )
-
-    @property
-    def available(self) -> bool:
-        if not super().available:
-            return False
-        if self._head_type_required is not None:
-            data = (self.coordinator.data or {}).get(self._device.sn) or {}
-            head_type = extract_field(data, "HeadMsg.head_type")
-            if head_type is not None:
-                # Default to available when head_type not yet received (device may be a snow blower).
-                try:
-                    return int(head_type) in self._head_type_required
-                except (ValueError, TypeError):
-                    return False
-        return True
-
-    def _data(self) -> dict:
-        return (self.coordinator.data or {}).get(self._device.sn) or {}
-
-
-class YarboSpeedSensor(_YarboRawSensorBase):
-    """Average forward speed derived from wheel encoders."""
-
-    _attr_name = "Speed"
-    _attr_icon = "mdi:speedometer"
-    _attr_native_unit_of_measurement = "m/s"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_speed"
-
-    @property
-    def native_value(self) -> float | None:
-        ws = self._data().get("WheelSpeedMSG") or {}
-        left = ws.get("left")
-        right = ws.get("right")
-        if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
-            return None
-        return round((float(left) + float(right)) / 2.0, 3)
-
-
-class YarboOdometryLeftSensor(_YarboRawSensorBase):
-    """Left wheel odometry distance."""
-
-    _attr_name = "Odometry Left"
-    _attr_icon = "mdi:counter"
-    _attr_native_unit_of_measurement = "m"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_odometry_left"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("WheelSpeedMSG") or {}).get("dist_left")
-        return round(float(val), 1) if isinstance(val, (int, float)) else None
-
-
-class YarboOdometryRightSensor(_YarboRawSensorBase):
-    """Right wheel odometry distance."""
-
-    _attr_name = "Odometry Right"
-    _attr_icon = "mdi:counter"
-    _attr_native_unit_of_measurement = "m"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_odometry_right"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("WheelSpeedMSG") or {}).get("dist_right")
-        return round(float(val), 1) if isinstance(val, (int, float)) else None
-
-
-class YarboOdomConfidenceSensor(_YarboRawSensorBase):
-    """Fused odometry / positioning confidence (0–1)."""
-
-    _attr_name = "Positioning Confidence"
-    _attr_icon = "mdi:crosshairs"
-    _attr_native_unit_of_measurement = None
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_odom_confidence"
-
-    @property
-    def native_value(self) -> float | None:
-        val = self._data().get("combined_odom_confidence")
-        return round(float(val), 3) if isinstance(val, (int, float)) else None
-
-
-class YarboRainSensor(_YarboRawSensorBase):
-    """Rain sensor raw reading."""
-
-    _attr_name = "Rain Sensor"
-    _attr_icon = "mdi:weather-rainy"
-    _attr_native_unit_of_measurement = None
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_rain_sensor"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("RunningStatusMSG") or {}).get("rain_sensor_data")
-        return float(val) if isinstance(val, (int, float)) else None
-
-
-class YarboChuteSensor(_YarboRawSensorBase):
-    """Snow chute angle — Snow Blower head only."""
-
-    _attr_name = "Chute Angle"
-    _attr_icon = "mdi:rotate-right"
-    _attr_native_unit_of_measurement = "°"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _head_type_required = _HEAD_SNOW_BLOWER
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_chute_angle"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("RunningStatusMSG") or {}).get("chute_angle")
-        return float(val) if isinstance(val, (int, float)) else None
-
-
-class YarboProximityLeftSensor(_YarboRawSensorBase):
-    """Left front ultrasonic distance (9999 = no obstacle)."""
-
-    _attr_name = "Proximity Left"
-    _attr_icon = "mdi:radar"
-    _attr_native_unit_of_measurement = "mm"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_proximity_left"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("ultrasonic_msg") or {}).get("lf_dis")
-        return float(val) if isinstance(val, (int, float)) else None
-
-
-class YarboProximityCenterSensor(_YarboRawSensorBase):
-    """Center ultrasonic distance (9999 = no obstacle)."""
-
-    _attr_name = "Proximity Center"
-    _attr_icon = "mdi:radar"
-    _attr_native_unit_of_measurement = "mm"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_proximity_center"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("ultrasonic_msg") or {}).get("mt_dis")
-        return float(val) if isinstance(val, (int, float)) else None
-
-
-class YarboProximityRightSensor(_YarboRawSensorBase):
-    """Right front ultrasonic distance (9999 = no obstacle)."""
-
-    _attr_name = "Proximity Right"
-    _attr_icon = "mdi:radar"
-    _attr_native_unit_of_measurement = "mm"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_proximity_right"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("ultrasonic_msg") or {}).get("rf_dis")
-        return float(val) if isinstance(val, (int, float)) else None
-
-
-class YarboGyroPitchSensor(_YarboRawSensorBase):
-    """Head attachment gyroscope pitch angle."""
-
-    _attr_name = "Head Gyro Pitch"
-    _attr_icon = "mdi:axis-x-rotate-clockwise"
-    _attr_native_unit_of_measurement = "°"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_entity_registry_enabled_default = False  # Diagnostic — disabled by default
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_gyro_pitch"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("RunningStatusMSG") or {}).get("head_gyro_pitch")
-        return round(float(val), 3) if isinstance(val, (int, float)) else None
-
-
-class YarboGyroRollSensor(_YarboRawSensorBase):
-    """Head attachment gyroscope roll angle."""
-
-    _attr_name = "Head Gyro Roll"
-    _attr_icon = "mdi:axis-y-rotate-clockwise"
-    _attr_native_unit_of_measurement = "°"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_entity_registry_enabled_default = False  # Diagnostic — disabled by default
-
-    def __init__(self, coordinator, device) -> None:
-        super().__init__(coordinator, device)
-        self._attr_unique_id = f"{device.sn}_gyro_roll"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("RunningStatusMSG") or {}).get("head_gyro_roll")
-        return round(float(val), 3) if isinstance(val, (int, float)) else None
+        val = self._pf().get("totalTime")
+        return round(float(val), 0) if val is not None else None
 
 
 class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
-    """Sensor exposing the mowing path GeoJSON for the current plan run.
+    """Live mowing path GeoJSON for the current plan run.
+
     State = number of path segments received.
-    Attribute 'geojson' = GeoJSON FeatureCollection (MultiLineString per segment).
-    Disabled by default — enable only if you need the live path on a map card.
-    Add this entity to recorder.exclude in configuration.yaml to avoid the
-    16 KB attribute size warning.
+    Attribute 'geojson' = GeoJSON FeatureCollection (LineString per segment).
+    Disabled by default — large attribute; exclude from recorder to avoid 16 KB warning.
     """
 
     _attr_has_entity_name = True
     _attr_name = "Plan Path"
     _attr_icon = "mdi:map-marker-path"
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = False  # keep — large attr, opt-in only
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator)
@@ -803,18 +585,13 @@ class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorE
 
     @property
     def device_info(self) -> DeviceInfo:
-        return DeviceInfo(
-            identifiers={(DOMAIN, self._device.sn)},
-            name=self._device.name,
-            manufacturer="Yarbo",
-            model=self._device.model,
-            serial_number=self._device.sn,
-        )
+        return _plan_device_info(self._device)
 
     @property
     def native_value(self) -> int | None:
-        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
-        segments = pf.get("cleanPathProgress") or []
+        segments = (self.coordinator.plan_feedback.get(self._device.sn) or {}).get(
+            "cleanPathProgress"
+        ) or []
         return len(segments) if segments else None
 
     @property
@@ -845,7 +622,7 @@ class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorE
                             float(pt.get("y", 0)),
                         )
                         coords.append([round(lon, 7), round(lat, 7)])
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         pass
                 if len(coords) >= 2:
                     features.append(
@@ -861,6 +638,6 @@ class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorE
                     )
             if features:
                 return {"geojson": {"type": "FeatureCollection", "features": features}}
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001
             _LOGGER.warning("plan_path geojson build failed: %s", err)
         return {}

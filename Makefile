@@ -1,14 +1,12 @@
 PYTHON     ?= .venv/bin/python
-PYRIGHT    ?= $(shell command -v pyright 2>/dev/null || echo .venv/bin/pyright)
-HA_BRANCH  ?= 2026.5.4
-HA_CLONE    = /tmp/ha-core
+PYRIGHT    ?= .venv/bin/pyright
 
 .PHONY: help setup lint test coverage bandit import-check check
 .DEFAULT_GOAL := help
 
 help:
 	@echo "Targets:"
-	@echo "  setup         create .venv, install HA core + dev deps (run once)"
+	@echo "  setup         create .venv and install all dev deps (run once)"
 	@echo "  lint          run pyright type check"
 	@echo "  test          run pytest unit tests"
 	@echo "  coverage      run pytest with coverage report"
@@ -19,9 +17,6 @@ help:
 setup:
 	python3 -m venv .venv
 	.venv/bin/pip install --upgrade pip
-	test -d $(HA_CLONE) || git clone --depth 1 --branch $(HA_BRANCH) https://github.com/home-assistant/core.git $(HA_CLONE)
-	.venv/bin/pip install --no-deps $(HA_CLONE)
-	.venv/bin/pip install voluptuous
 	.venv/bin/pip install -r requirements_dev.txt
 	.venv/bin/pre-commit install
 

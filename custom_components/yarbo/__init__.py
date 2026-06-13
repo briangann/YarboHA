@@ -13,6 +13,7 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import YarboDataUpdateCoordinator
+from .websocket_api import async_register as async_register_websockets
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,6 +25,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+
+    # Register the on-demand map (GeoJSON) WebSocket command once. Kept out of
+    # entity attributes to stay under the recorder's 16 KB limit.
+    async_register_websockets(hass)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _register_set_nogozone_enabled(hass)
 
@@ -48,6 +54,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
+# keep — intentional: service restored; upstream removed without deprecation
 def _register_set_nogozone_enabled(hass: HomeAssistant) -> None:
     """Register the yarbo.set_nogozone_enabled service (idempotent)."""
     if hass.services.has_service(DOMAIN, "set_nogozone_enabled"):
@@ -80,15 +87,7 @@ def _register_set_nogozone_enabled(hass: HomeAssistant) -> None:
         )
         if sn is None:
             raise ServiceValidationError(f"Device {device_id} has no Yarbo identifier")
-        yarbo_dev = next((d for d in coordinator.devices if d.sn == sn), None)
-        if yarbo_dev is None:
-            raise ServiceValidationError(f"Device {sn} not in coordinator.devices")
-        await coordinator.async_set_nogozone_enabled(
-            sn,
-            yarbo_dev.type_id,
-            zone_id,
-            enabled,
-        )
+        await coordinator.async_set_nogozone_enabled(sn, zone_id, enabled)
 
     hass.services.async_register(
         DOMAIN,

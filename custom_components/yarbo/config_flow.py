@@ -18,10 +18,13 @@ from homeassistant.core import callback
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    CONF_KEEP_AWAKE_MODE,
     CONF_SELECTED_DEVICES,
     DATA_ACCESS_TOKEN,
     DATA_REFRESH_TOKEN,
     DOMAIN,
+    KEEP_AWAKE_ALWAYS,
+    KEEP_AWAKE_MODES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -256,14 +259,21 @@ class YarboOptionsFlow(OptionsFlow):
             if not selected:
                 errors["base"] = "no_devices_selected"
             else:
-                return self.async_create_entry(data={CONF_SELECTED_DEVICES: selected})
+                return self.async_create_entry(
+                    data={
+                        CONF_SELECTED_DEVICES: selected,
+                        CONF_KEEP_AWAKE_MODE: user_input.get(
+                            CONF_KEEP_AWAKE_MODE, KEEP_AWAKE_ALWAYS
+                        ),
+                    }
+                )
 
         # Fetch fresh device list from API via coordinator's client
         coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
-        if coordinator and coordinator.client:
+        if coordinator and coordinator._client:
             try:
                 devices = await self.hass.async_add_executor_job(
-                    coordinator.client.get_devices
+                    coordinator._client.get_devices
                 )
             except Exception as err:
                 _LOGGER.error("Failed to fetch devices in options flow: %s", err)
@@ -288,6 +298,12 @@ class YarboOptionsFlow(OptionsFlow):
                 vol.Optional(
                     CONF_SELECTED_DEVICES, default=current_selected
                 ): cv.multi_select(device_options),
+                vol.Required(
+                    CONF_KEEP_AWAKE_MODE,
+                    default=self.config_entry.options.get(
+                        CONF_KEEP_AWAKE_MODE, KEEP_AWAKE_ALWAYS
+                    ),
+                ): vol.In(KEEP_AWAKE_MODES),
             }
         )
 
