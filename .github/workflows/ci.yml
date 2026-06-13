@@ -15,8 +15,6 @@ concurrency:
 
 env:
   COMPONENT: custom_components/yarbo
-  HA_BRANCH: "2026.5.4"
-  HA_CLONE: /tmp/ha-core
 
 jobs:
   lint-and-test:
@@ -35,22 +33,8 @@ jobs:
             requirements.txt
             requirements_dev.txt
 
-      - name: "Cache Home Assistant core clone"
-        id: cache-ha-core
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ${{ env.HA_CLONE }}
-          key: ha-core-${{ env.HA_BRANCH }}
-
-      - name: "Shallow clone Home Assistant core"
-        if: steps.cache-ha-core.outputs.cache-hit != 'true'
-        run: git clone --depth 1 --branch ${{ env.HA_BRANCH }} https://github.com/home-assistant/core.git ${{ env.HA_CLONE }}
-
       - name: "Install dependencies"
-        run: |
-          pip install --no-deps ${{ env.HA_CLONE }}
-          pip install voluptuous
-          pip install -r requirements_dev.txt
+        run: pip install -r requirements_dev.txt
 
       - name: "Run ruff lint"
         run: ruff check ${{ env.COMPONENT }}/
