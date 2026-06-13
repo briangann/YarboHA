@@ -28,6 +28,11 @@ TOKEN = "tok"
 REFRESH = "ref"
 
 
+def _close_background_task(hass, coro, **kwargs):
+    """Close the coroutine so GC doesn't emit 'was never awaited' warnings."""
+    coro.close()
+
+
 def _fake_device(sn="SN001", type_id="T01", name="Yarbo Y1", model="Y1"):
     d = MagicMock()
     d.sn = sn
@@ -83,7 +88,11 @@ async def test_async_setup_happy_path(hass: HomeAssistant):
         with patch("custom_components.yarbo.coordinator.async_track_time_interval"):
             coord = YarboDataUpdateCoordinator(hass, entry)
             with patch.object(coord, "_async_restore_standby", new=AsyncMock()):
-                with patch.object(coord.entry, "async_create_background_task"):
+                with patch.object(
+                    coord.entry,
+                    "async_create_background_task",
+                    side_effect=_close_background_task,
+                ):
                     await coord.async_setup()
 
     assert coord._client is client
@@ -107,7 +116,11 @@ async def test_async_setup_login_fallback_when_no_tokens(hass: HomeAssistant):
         with patch("custom_components.yarbo.coordinator.async_track_time_interval"):
             coord = YarboDataUpdateCoordinator(hass, entry)
             with patch.object(coord, "_async_restore_standby", new=AsyncMock()):
-                with patch.object(coord.entry, "async_create_background_task"):
+                with patch.object(
+                    coord.entry,
+                    "async_create_background_task",
+                    side_effect=_close_background_task,
+                ):
                     await coord.async_setup()
 
     client.login.assert_called_once_with(EMAIL, "secret")
@@ -124,7 +137,11 @@ async def test_async_setup_filters_devices_by_selection(hass: HomeAssistant):
         with patch("custom_components.yarbo.coordinator.async_track_time_interval"):
             coord = YarboDataUpdateCoordinator(hass, entry)
             with patch.object(coord, "_async_restore_standby", new=AsyncMock()):
-                with patch.object(coord.entry, "async_create_background_task"):
+                with patch.object(
+                    coord.entry,
+                    "async_create_background_task",
+                    side_effect=_close_background_task,
+                ):
                     await coord.async_setup()
 
     assert len(coord.devices) == 1
@@ -141,7 +158,11 @@ async def test_async_setup_all_devices_when_no_selection(hass: HomeAssistant):
         with patch("custom_components.yarbo.coordinator.async_track_time_interval"):
             coord = YarboDataUpdateCoordinator(hass, entry)
             with patch.object(coord, "_async_restore_standby", new=AsyncMock()):
-                with patch.object(coord.entry, "async_create_background_task"):
+                with patch.object(
+                    coord.entry,
+                    "async_create_background_task",
+                    side_effect=_close_background_task,
+                ):
                     await coord.async_setup()
 
     assert len(coord.devices) == 2
@@ -160,7 +181,11 @@ async def test_async_setup_mqtt_failure_is_non_fatal(hass: HomeAssistant):
         with patch("custom_components.yarbo.coordinator.async_track_time_interval"):
             coord = YarboDataUpdateCoordinator(hass, entry)
             with patch.object(coord, "_async_restore_standby", new=AsyncMock()):
-                with patch.object(coord.entry, "async_create_background_task"):
+                with patch.object(
+                    coord.entry,
+                    "async_create_background_task",
+                    side_effect=_close_background_task,
+                ):
                     await coord.async_setup()
 
     assert coord._client is client
@@ -214,7 +239,11 @@ async def test_async_setup_heartbeat_subscription_failure_non_fatal(
         with patch("custom_components.yarbo.coordinator.async_track_time_interval"):
             coord = YarboDataUpdateCoordinator(hass, entry)
             with patch.object(coord, "_async_restore_standby", new=AsyncMock()):
-                with patch.object(coord.entry, "async_create_background_task"):
+                with patch.object(
+                    coord.entry,
+                    "async_create_background_task",
+                    side_effect=_close_background_task,
+                ):
                     await coord.async_setup()
 
     assert coord._client is client
