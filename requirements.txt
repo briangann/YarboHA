@@ -1,1 +1,1 @@
-yarbo-data-sdk>=0.2.0
+yarbo-data-sdk>=0.2.1
