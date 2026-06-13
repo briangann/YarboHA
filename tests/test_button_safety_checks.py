@@ -11,7 +11,7 @@ call, we never need a live HA instance.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from homeassistant.exceptions import HomeAssistantError
@@ -84,13 +84,15 @@ class TestStartPlanChecks:
             await btn.async_press()
 
     @pytest.mark.asyncio
-    async def test_wireless_charging_raises(self):
+    async def test_wireless_charging_does_not_block_start(self):
+        # Robot autonomously undocks from wireless charging when a plan is issued.
         btn = _make_button(
             YarboStartPlanButton,
-            {"__online__": True, "BatteryMSG": {"status": 2}},
+            {"__online__": True, "BatteryMSG": {"status": 2}, "RTKMSG": {"status": 4}},
         )
-        with pytest.raises(HomeAssistantError, match="charging"):
-            await btn.async_press()
+        btn.coordinator.bound_device.return_value = MagicMock()
+        btn.hass.async_add_executor_job = AsyncMock()
+        await btn.async_press()  # must not raise
 
     @pytest.mark.asyncio
     async def test_weak_rtk_raises(self):

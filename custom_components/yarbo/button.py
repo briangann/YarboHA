@@ -302,11 +302,6 @@ class YarboStartPlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], Button
         if isinstance(recharge_state, (int, float)) and recharge_state in (1, 3):
             raise HomeAssistantError("Cannot start plan: device is wired charging")
 
-        # Check 4: Not wireless charging (BatteryMSG.status > 1 means charging)
-        battery_status = (data.get("BatteryMSG") or {}).get("status")
-        if isinstance(battery_status, (int, float)) and battery_status > 1:
-            raise HomeAssistantError("Cannot start plan: device is charging")
-
         # Check 5: RTK signal must not be weak (4=Strong, 5=Medium)
         rtk_status = (data.get("RTKMSG") or {}).get("status")
         rtk_val = int(rtk_status) if rtk_status is not None else 0
