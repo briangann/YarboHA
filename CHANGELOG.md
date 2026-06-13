@@ -90,10 +90,11 @@ The following issues were identified during code review and must be resolved or 
   reversed this without explanation. Needs device-confirmed answer: can the robot
   autonomously undock from wireless charging when a plan is issued?
 
-- **`select.py` — plan select lost running-plan reflection** `YarboPlanSelect.current_option`
-  no longer resolves the active plan from `coordinator.plan_feedback` (by matching
-  `areaIds`). Select now shows only the user's last manual selection while a plan is
-  running. Intentional simplification or oversight?
+- **`select.py` — plan select lost running-plan reflection** ✅ Fixed. `current_option`
+  now resolves plan name from `coordinator.get_selected_plan()` (tracks selections and
+  button starts). Limitation vs old behavior: only reflects plans started through HA;
+  plans started from the mobile app won't be reflected (old `plan_feedback` MQTT mechanism
+  removed upstream).
 
 - **`__init__.py` — `yarbo.set_nogozone_enabled` service removed** No deprecation stub,
   no CHANGELOG entry. Automations using this service break silently on upgrade.

@@ -171,3 +171,36 @@ class TestPlanSelectOptions:
         sel = _make_plan_select(plans=[{"id": 7, "name": "Side Yard"}])
         _ = sel.options  # trigger map build
         assert sel._plan_id_map == {"Side Yard": 7}
+
+
+# ---------------------------------------------------------------------------
+# YarboPlanSelect.current_option
+# ---------------------------------------------------------------------------
+
+
+class TestPlanSelectCurrentOption:
+    def _sel(self, plans, selected_id=None, attr=None):
+        sel = _make_plan_select(plans=plans)
+        sel.coordinator.get_selected_plan = MagicMock(return_value=selected_id)
+        sel._attr_current_option = attr
+        return sel
+
+    def test_resolves_name_from_selected_plan_id(self):
+        sel = self._sel([{"id": 5, "name": "Front Lawn"}], selected_id=5)
+        assert sel.current_option == "Front Lawn"
+
+    def test_falls_back_to_attr_when_no_selected_id(self):
+        sel = self._sel(
+            [{"id": 5, "name": "Front Lawn"}], selected_id=None, attr="Back Yard"
+        )
+        assert sel.current_option == "Back Yard"
+
+    def test_falls_back_to_attr_when_id_not_in_plan_list(self):
+        sel = self._sel(
+            [{"id": 5, "name": "Front Lawn"}], selected_id=99, attr="Back Yard"
+        )
+        assert sel.current_option == "Back Yard"
+
+    def test_returns_none_when_no_selection_and_no_attr(self):
+        sel = self._sel([], selected_id=None, attr=None)
+        assert sel.current_option is None
