@@ -196,10 +196,16 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
 
     @property
     def current_option(self) -> str | None:
-        """Resolve plan name from coordinator selected-plan ID, falling back to attr."""
+        """Resolve running plan name from plan_feedback areaIds, falling back to selected plan."""
+        plans = self.coordinator.plan_data.get(self._device.sn, [])
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        running_area_ids = set(pf.get("areaIds") or [])
+        if running_area_ids:
+            for p in plans:
+                if set(p.get("areaIds") or []) == running_area_ids:
+                    return p.get("name")
         plan_id = self.coordinator.get_selected_plan(self._device.sn)
         if plan_id is not None:
-            plans = self.coordinator.plan_data.get(self._device.sn, [])
             for p in plans:
                 if p.get("id") == plan_id:
                     return p.get("name")

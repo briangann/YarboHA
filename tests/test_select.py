@@ -179,13 +179,27 @@ class TestPlanSelectOptions:
 
 
 class TestPlanSelectCurrentOption:
-    def _sel(self, plans, selected_id=None, attr=None):
+    def _sel(self, plans, selected_id=None, attr=None, plan_feedback=None):
         sel = _make_plan_select(plans=plans)
         sel.coordinator.get_selected_plan = MagicMock(return_value=selected_id)
+        sel.coordinator.plan_feedback = {SN: plan_feedback} if plan_feedback else {}
         sel._attr_current_option = attr
         return sel
 
-    def test_resolves_name_from_selected_plan_id(self):
+    def test_resolves_name_from_plan_feedback_area_ids(self):
+        plans = [{"id": 1, "name": "Front Lawn", "areaIds": [10, 20]}]
+        sel = self._sel(plans, plan_feedback={"areaIds": [10, 20]})
+        assert sel.current_option == "Front Lawn"
+
+    def test_plan_feedback_takes_priority_over_selected_id(self):
+        plans = [
+            {"id": 1, "name": "Front Lawn", "areaIds": [10, 20]},
+            {"id": 2, "name": "Back Yard", "areaIds": [30]},
+        ]
+        sel = self._sel(plans, selected_id=2, plan_feedback={"areaIds": [10, 20]})
+        assert sel.current_option == "Front Lawn"
+
+    def test_falls_back_to_selected_plan_id_when_no_feedback(self):
         sel = self._sel([{"id": 5, "name": "Front Lawn"}], selected_id=5)
         assert sel.current_option == "Front Lawn"
 

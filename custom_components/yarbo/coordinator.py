@@ -100,6 +100,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self._map_data: dict[str, dict] = {}
         self._map_raw: dict[str, dict] = {}
         self._plan_data: dict[str, list[dict]] = {}
+        self._plan_feedback: dict[str, dict] = {}
         self._last_heartbeat: dict[str, float] = {}
         self._user_standby: dict[str, bool] = {}
         # Online-recovery bookkeeping for the request/response data a device can
@@ -220,7 +221,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         except YarboSDKError as err:
             _LOGGER.warning("MQTT connection failed: %s", err)
 
-        # Subscribe to data_feedback for selected devices
+        # Subscribe to data_feedback and plan_feedback for selected devices
         for device in self.devices:
             try:
                 await self.hass.async_add_executor_job(
@@ -232,6 +233,35 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             except YarboSDKError as err:
                 _LOGGER.warning(
                     "data_feedback subscription failed for %s: %s", device.sn, err
+                )
+
+            plan_topic = f"snowbot/{device.sn}/device/plan_feedback"
+
+            def _on_plan_feedback(topic_str, payload, _sn=device.sn):
+                from yarbo_robot_sdk.codec import decode_mqtt_payload
+
+                try:
+                    data = decode_mqtt_payload(payload)
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.warning("plan_feedback decode failed for %s: %s", _sn, err)
+                    return
+                if not isinstance(data, dict):
+                    return
+                self._plan_feedback[_sn] = data
+                if self.data is not None:
+                    self.hass.loop.call_soon_threadsafe(
+                        self.async_set_updated_data, self.data
+                    )
+
+            try:
+                await self.hass.async_add_executor_job(
+                    client._ensure_mqtt_for(device.sn).subscribe,
+                    plan_topic,
+                    _on_plan_feedback,
+                )
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "plan_feedback subscribe failed for %s: %s", device.sn, err
                 )
 
         # Auto wake-up per the configured keep-awake policy. Restore persisted
@@ -518,6 +548,11 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
     def plan_data(self) -> dict[str, list[dict]]:
         """Auto plan list per device: {sn: [{id, name, areaIds, ...}]}."""
         return self._plan_data
+
+    @property
+    def plan_feedback(self) -> dict[str, dict]:
+        """Latest plan_feedback payload per device (areaIds of running plan)."""
+        return self._plan_feedback
 
     def set_selected_plan(self, sn: str, plan_id: int | None) -> None:
         """Record the user's plan selection for Start Plan button."""
