@@ -299,7 +299,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
 
                 try:
                     await self.hass.async_add_executor_job(
-                        client.mqtt_subscribe,
+                        client._ensure_mqtt_for(device.sn).subscribe,
                         plan_topic,
                         _on_plan_feedback,
                     )
@@ -328,7 +328,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
 
                 try:
                     await self.hass.async_add_executor_job(
-                        client.mqtt_subscribe,
+                        client._ensure_mqtt_for(device.sn).subscribe,
                         cloud_topic,
                         _on_cloud_points,
                     )

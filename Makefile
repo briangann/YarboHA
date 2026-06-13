@@ -1,4 +1,5 @@
 PYTHON     ?= .venv/bin/python
+PYRIGHT    ?= $(shell command -v pyright 2>/dev/null || echo .venv/bin/pyright)
 HA_BRANCH  ?= 2026.5.4
 HA_CLONE    = /tmp/ha-core
 
@@ -18,14 +19,14 @@ help:
 setup:
 	python3 -m venv .venv
 	.venv/bin/pip install --upgrade pip
-	git clone --depth 1 --branch $(HA_BRANCH) https://github.com/home-assistant/core.git $(HA_CLONE)
+	test -d $(HA_CLONE) || git clone --depth 1 --branch $(HA_BRANCH) https://github.com/home-assistant/core.git $(HA_CLONE)
 	.venv/bin/pip install --no-deps $(HA_CLONE)
 	.venv/bin/pip install voluptuous
 	.venv/bin/pip install -r requirements_dev.txt
 	.venv/bin/pre-commit install
 
 lint:
-	.venv/bin/pyright custom_components/yarbo/
+	$(PYRIGHT) custom_components/yarbo/
 
 test:
 	$(PYTHON) -m pytest tests/ -v
