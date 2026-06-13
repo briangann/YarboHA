@@ -281,8 +281,13 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             await self._async_fetch_wifi_info(device.sn, device.type_id)
             await self._async_fetch_plans(device.sn, device.type_id)
             await self._async_fetch_gps_ref(device.sn, device.type_id)
-        if self.data is not None:
-            self.async_set_updated_data(self.data)
+        # Always notify entities after the initial fetch pass, even if every
+        # device was offline and all fetches timed out. Without this, data stays
+        # None and entities remain in "unknown" state indefinitely instead of
+        # transitioning to "unavailable".
+        if self.data is None:
+            self.data = {}
+        self.async_set_updated_data(self.data)
 
     # ---- MQTT callbacks ----
 
