@@ -23,14 +23,16 @@ views:
             icon: mdi:robot-mower
             size: 24
             color: '#ff6b35'
-          - entity: sensor.<DEVICE_SN>_map_zones
+          # Map GeoJSON sensor (enable sensor.<DEVICE_SN>_map_geojson in HA first;
+          # exclude from recorder to avoid 16 KB attribute limit warnings)
+          - entity: sensor.<DEVICE_SN>_map_geojson
             focus_on_fit: false
             geojson:
               attribute: geojson
               color: '#4a9eff'
               fill_opacity: 0.2
               hide_marker: true
-          - entity: sensor.<DEVICE_SN>_map_zones
+          - entity: sensor.<DEVICE_SN>_map_geojson
             focus_on_fit: false
             geojson:
               attribute: obstacles_geojson
