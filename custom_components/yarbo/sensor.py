@@ -16,6 +16,11 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
 
+# SDK marks these disabled_by_default conservatively; we want them on.
+_FORCE_ENABLED: frozenset[str] = frozenset(
+    f"BatteryMSG.temperature{i}" for i in range(1, 7)
+) | {"BatteryMSG.voltage", "BatteryMSG.current"}
+
 # Sensor device_classes that represent a numeric measurement
 MEASUREMENT_CLASSES = {
     "battery",
@@ -121,7 +126,9 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         path_key = field_def.path.replace(".", "_").replace("__", "").lower()
         self._attr_unique_id = f"{device.sn}_{path_key}"
         self._attr_name = field_def.name
-        self._attr_entity_registry_enabled_default = field_def.enabled_by_default
+        self._attr_entity_registry_enabled_default = (
+            True if field_def.path in _FORCE_ENABLED else field_def.enabled_by_default
+        )
 
         # Device class
         if field_def.value_map:
