@@ -48,3 +48,22 @@
 ### Open follow-ups (not blocking merge)
 - Battery threshold SOC check in `YarboStartPlanButton` — field name TBD from device payload inspection (`BatteryMSG` has no min/max threshold fields in SDK; likely in REST `get_device_msg` response)
 - `coordinator.py` — plan-completion auto-refresh (`on_going_planning == 5`) removed upstream; documented, not restored
+
+---
+
+## 2026-06-13 (late afternoon) — PR #23 merged, v0.5.2 released
+
+### Status
+- PR #23 merged to main at `55f8a35`
+- Tagged and released `v0.5.2` → https://github.com/briangann/YarboHA/releases/tag/v0.5.2
+- CI passing: 302 tests, 0 warnings, 0 lint errors, bandit clean
+
+### Additional work done
+- Restored 10 plan feedback sensors (`YarboCurrentPlanSensor`, clean area, battery consumption, progress, remaining area, time remaining, elapsed time, total area, total time, plan path GeoJSON)
+- Added `keep — intentional` comments throughout codebase marking deliberate upstream divergences
+- Created `CHANGELOG-dev.md` for internal review notes (AGENTS.md updated with convention)
+- CI workflow updated: removed HA core clone, switched to `pytest-homeassistant-custom-component`; creates `.venv` to satisfy pyright; all action pins current
+- Fixed `RuntimeWarning: coroutine was never awaited` in test mocks via `_close_background_task` side effect
+
+### Open follow-ups
+- Battery threshold SOC check in `YarboStartPlanButton` — inspect live device `get_device_msg` REST response for min/max SOC fields from "working preferences"

@@ -153,3 +153,22 @@ Address PR #23 blockers 1–5 in order. Start with `device_tracker.py` recorder 
 
 ### Test count
 302 tests pass (up from 288 at session start)
+
+---
+
+## 2026-06-13 (late afternoon) — Merged + Released v0.5.2
+
+- PR #23 merged to main: `55f8a35`
+- `v0.5.2` tagged and released: https://github.com/briangann/YarboHA/releases/tag/v0.5.2
+- Final test count: 302 passed, 0 warnings, 0 pyright errors, bandit clean
+- CI workflow fully updated: venv-based, no HA core clone, action pins current
+
+### Late additions before merge
+- Restored 10 plan feedback sensors (all read from `coordinator.plan_feedback`)
+- `keep — intentional` comments added to all deliberate upstream divergences
+- `CHANGELOG-dev.md` created; convention added to AGENTS.md §11
+- `CHANGELOG.md` cleaned to user-facing release notes only
+- `RuntimeWarning` from unawaited coroutine in tests fixed via `_close_background_task`
+
+### Still open
+- Battery threshold SOC check — field path unknown, needs live device `get_device_msg` inspection
