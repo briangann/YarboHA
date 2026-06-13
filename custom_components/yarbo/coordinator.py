@@ -98,6 +98,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self.devices: list = []
         self._gps_refs: dict[str, dict] = {}
         self._map_data: dict[str, dict] = {}
+        self._map_raw: dict[str, dict] = {}
         self._plan_data: dict[str, list[dict]] = {}
         self._last_heartbeat: dict[str, float] = {}
         self._user_standby: dict[str, bool] = {}
@@ -765,6 +766,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 )
                 return
             fallback_ref = self._gps_refs.get(sn)
+            self._map_raw[sn] = raw_data
             geojson = convert_map_to_geojson(raw_data, fallback_ref)
             self._map_data[sn] = geojson
             self._persist_maps()
@@ -781,6 +783,44 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
     async def async_refresh_map_data(self, sn: str, type_id: str) -> None:
         """Re-fetch map data and trigger entity update."""
         await self._async_fetch_map_data(sn, type_id)
+        if self.data is not None:
+            self.async_set_updated_data(self.data)
+
+    async def async_set_nogozone_enabled(self, sn: str, zone_id, enabled: bool) -> None:
+        """Toggle a single no-go zone's enable flag and persist it via MQTT."""
+        from homeassistant.exceptions import HomeAssistantError
+        from yarbo_robot_sdk.codec import encode_mqtt_payload, should_compress
+
+        if self._client is None:
+            raise HomeAssistantError("Yarbo client not initialised")
+        device_data = (self.data or {}).get(sn) or {}
+        planning = (device_data.get("StateMSG") or {}).get("on_going_planning", 0)
+        if isinstance(planning, (int, float)) and 0 < planning < 5:
+            raise HomeAssistantError(
+                "Cannot change no-go zones while a plan is running."
+            )
+        raw = self._map_raw.get(sn) or {}
+        zone = next(
+            (
+                z
+                for z in (raw.get("nogozones") or [])
+                if z.get("id") == zone_id or str(z.get("id")) == str(zone_id)
+            ),
+            None,
+        )
+        if zone is None:
+            raise HomeAssistantError(f"No-go zone {zone_id} not found in cached map")
+        payload = {**zone, "enable": bool(enabled)}
+        topic = f"snowbot/{sn}/app/save_nogozone"
+        fw = self._client._firmware_versions.get(sn)
+        encoded = (
+            encode_mqtt_payload(payload)
+            if should_compress(fw)
+            else json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        )
+        mqtt = self._client._ensure_mqtt_for(sn)
+        await self.hass.async_add_executor_job(mqtt.publish, topic, encoded)
+        zone["enable"] = bool(enabled)
         if self.data is not None:
             self.async_set_updated_data(self.data)
 

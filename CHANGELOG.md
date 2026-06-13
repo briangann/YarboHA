@@ -96,10 +96,11 @@ The following issues were identified during code review and must be resolved or 
   plans started from the mobile app won't be reflected (old `plan_feedback` MQTT mechanism
   removed upstream).
 
-- **`__init__.py` — `yarbo.set_nogozone_enabled` service removed** No deprecation stub,
-  no CHANGELOG entry. Automations using this service break silently on upgrade.
-  Decision: add a one-version stub that raises `ServiceValidationError` with a migration
-  message, or document explicitly as a breaking removal.
+- **`__init__.py` — `yarbo.set_nogozone_enabled` service removed** ✅ Restored. Service
+  re-registered in `__init__.py`; `async_set_nogozone_enabled()` re-added to coordinator
+  using `yarbo_robot_sdk.codec` for firmware-aware encoding and `_ensure_mqtt_for(sn)`
+  for dual-broker MQTT publish. Raw map data (`_map_raw`) preserved alongside GeoJSON in
+  coordinator so zone mutations have the original payload to modify.
 
 #### 🟢 Documented / low risk
 
