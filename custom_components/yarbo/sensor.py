@@ -1582,13 +1582,14 @@ _M2_TO_FT2 = 10.7639
 
 
 def _area_unit(hass) -> str:
-    """Return area unit based on HA unit system preference."""
-    return "m²" if hass.config.units.is_metric else "ft²"
+    """Return area unit from HA unit system (m² or ft²)."""
+    return hass.config.units.area_unit
 
 
 def _convert_area(hass, m2: float) -> float:
     """Convert m² to user's preferred area unit."""
-    return round(m2, 2) if hass.config.units.is_metric else round(m2 * _M2_TO_FT2, 2)
+    unit = hass.config.units.area_unit
+    return round(m2, 2) if unit == "m²" else round(m2 * _M2_TO_FT2, 2)
 
 
 def _fmt_duration(seconds: float) -> str:
