@@ -1,4 +1,5 @@
 PYTHON     ?= .venv/bin/python
+PYRIGHT    ?= $(shell command -v pyright 2>/dev/null || echo .venv/bin/pyright)
 HA_BRANCH  ?= 2026.5.4
 HA_CLONE    = /tmp/ha-core
 
@@ -25,7 +26,7 @@ setup:
 	.venv/bin/pre-commit install
 
 lint:
-	.venv/bin/pyright custom_components/yarbo/
+	$(PYRIGHT) custom_components/yarbo/
 
 test:
 	$(PYTHON) -m pytest tests/ -v
