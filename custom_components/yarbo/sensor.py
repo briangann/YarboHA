@@ -19,7 +19,18 @@ from .coordinator import YarboDataUpdateCoordinator
 # SDK marks these disabled_by_default conservatively; we want them on.
 _FORCE_ENABLED: frozenset[str] = frozenset(
     f"BatteryMSG.temperature{i}" for i in range(1, 7)
-) | {"BatteryMSG.voltage", "BatteryMSG.current"}
+) | {
+    "BatteryMSG.voltage",
+    "BatteryMSG.current",
+    "__computed__.charging_power",
+    "halow_status.strength",
+    "StateMSG.obstacle",
+    "RunningStatusMSG.rain_sensor_data",
+    "CombinedOdom.x",
+    "CombinedOdom.y",
+    "CombinedOdom.phi",
+    "RTKMSG.sat_num",
+}
 
 # Sensor device_classes that represent a numeric measurement
 MEASUREMENT_CLASSES = {
