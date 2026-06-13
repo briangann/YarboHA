@@ -1,6 +1,6 @@
 PYTHON     ?= .venv/bin/python
-PYRIGHT    ?= $(shell command -v pyright 2>/dev/null || echo .venv/bin/pyright)
-HA_BRANCH  ?= 2026.5.4
+PYRIGHT    ?= .venv/bin/pyright
+HA_BRANCH  ?= 2026.6.3
 HA_CLONE    = /tmp/ha-core
 
 .PHONY: help setup lint test coverage bandit import-check check

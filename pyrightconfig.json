@@ -1,7 +1,10 @@
 {
-  "venvPath": "/Users/bgann",
-  "venv": "venv",
+  "venvPath": ".",
+  "venv": ".venv",
   "pythonVersion": "3.14",
+  "stubPath": "stubs",
+  "include": ["custom_components"],
+  "exclude": ["tests"],
   "reportIncompatibleMethodOverride": false,
   "reportIncompatibleVariableOverride": false
 }
