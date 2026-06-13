@@ -30,6 +30,7 @@ def _make_tracker(gps_refs=None, device_data=None):
     tracker.coordinator = coord
     tracker._computed_lat = None
     tracker._computed_lon = None
+    tracker._last_position = (None, None, False)
     return tracker
 
 

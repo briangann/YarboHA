@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from collections import Counter
 
@@ -104,7 +105,10 @@ class YarboMapSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
         can be frequent). The map data changes rarely, so skip redundant state
         writes to avoid needless recorder rows and dashboard WebSocket traffic.
         """
-        signature = (self.native_value, repr(self.extra_state_attributes))
+        signature = (
+            self.native_value,
+            json.dumps(self.extra_state_attributes, sort_keys=True),
+        )
         if signature == self._last_signature:
             return
         self._last_signature = signature

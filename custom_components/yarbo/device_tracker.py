@@ -45,6 +45,7 @@ class YarboDeviceTracker(CoordinatorEntity[YarboDataUpdateCoordinator], TrackerE
         self._attr_unique_id = f"{device.sn}_device_tracker"
         self._computed_lat: float | None = None
         self._computed_lon: float | None = None
+        self._last_position: tuple = (None, None, False)
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -103,33 +104,33 @@ class YarboDeviceTracker(CoordinatorEntity[YarboDataUpdateCoordinator], TrackerE
         self._computed_lon = None
 
         gps_ref = self.coordinator.gps_refs.get(self._device.sn)
-        if gps_ref is None or gps_ref.get("rtkFixType") != 1:
-            self.async_write_ha_state()
+        if gps_ref is not None and gps_ref.get("rtkFixType") == 1:
+            ref = gps_ref.get("ref", {})
+            ref_lat = ref.get("latitude")
+            ref_lon = ref.get("longitude")
+            if ref_lat is not None and ref_lon is not None:
+                device_data = (self.coordinator.data or {}).get(self._device.sn, {})
+                from yarbo_robot_sdk.device_helpers import (
+                    extract_field,
+                    convert_local_to_gps,
+                )
+
+                local_x = extract_field(device_data, "CombinedOdom.x")
+                local_y = extract_field(device_data, "CombinedOdom.y")
+                if local_x is not None and local_y is not None:
+                    try:
+                        self._computed_lat, self._computed_lon = convert_local_to_gps(
+                            ref_lat, ref_lon, float(local_x), float(local_y)
+                        )
+                    except (ValueError, TypeError) as err:
+                        _LOGGER.debug(
+                            "Coordinate conversion failed for %s: %s",
+                            self._device.sn,
+                            err,
+                        )
+
+        position = (self._computed_lat, self._computed_lon, self.available)
+        if position == self._last_position:
             return
-
-        ref = gps_ref.get("ref", {})
-        ref_lat = ref.get("latitude")
-        ref_lon = ref.get("longitude")
-        if ref_lat is None or ref_lon is None:
-            self.async_write_ha_state()
-            return
-
-        device_data = (self.coordinator.data or {}).get(self._device.sn, {})
-        from yarbo_robot_sdk.device_helpers import extract_field, convert_local_to_gps
-
-        local_x = extract_field(device_data, "CombinedOdom.x")
-        local_y = extract_field(device_data, "CombinedOdom.y")
-        if local_x is None or local_y is None:
-            self.async_write_ha_state()
-            return
-
-        try:
-            self._computed_lat, self._computed_lon = convert_local_to_gps(
-                ref_lat, ref_lon, float(local_x), float(local_y)
-            )
-        except (ValueError, TypeError) as err:
-            _LOGGER.debug(
-                "Coordinate conversion failed for %s: %s", self._device.sn, err
-            )
-
+        self._last_position = position
         self.async_write_ha_state()
