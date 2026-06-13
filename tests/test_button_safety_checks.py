@@ -128,8 +128,8 @@ class TestStartPlanChecks:
             await btn.async_press()
 
     @pytest.mark.asyncio
-    async def test_all_checks_pass_completes_silently(self):
-        """All preconditions pass; _client is None so command is logged and swallowed."""
+    async def test_not_connected_raises(self):
+        """All preconditions pass; _client is None → HomeAssistantError raised."""
         btn = _make_button(
             YarboStartPlanButton,
             {
@@ -138,11 +138,32 @@ class TestStartPlanChecks:
                 "StateMSG": {"on_going_planning": 0, "on_going_recharging": 0},
             },
         )
-        await btn.async_press()  # must not raise
+        with pytest.raises(HomeAssistantError, match="not connected"):
+            await btn.async_press()
+
+    @pytest.mark.asyncio
+    async def test_sdk_failure_raises_home_assistant_error(self):
+        """SDK raises on mqtt_publish_command → wrapped as HomeAssistantError."""
+        from unittest.mock import AsyncMock
+
+        btn = _make_button(
+            YarboStartPlanButton,
+            {
+                "__online__": True,
+                "RTKMSG": {"status": 4},
+                "StateMSG": {"on_going_planning": 0, "on_going_recharging": 0},
+            },
+        )
+        btn.coordinator._client = MagicMock()
+        btn.hass.async_add_executor_job = AsyncMock(
+            side_effect=Exception("broker down")
+        )
+        with pytest.raises(HomeAssistantError, match="Failed to start plan"):
+            await btn.async_press()
 
     @pytest.mark.asyncio
     async def test_planning_status_5_not_active(self):
-        """on_going_planning == 5 means plan completed/idle — not 'running'."""
+        """on_going_planning == 5 means plan completed/idle — raises not_connected."""
         btn = _make_button(
             YarboStartPlanButton,
             {
@@ -151,12 +172,12 @@ class TestStartPlanChecks:
                 "StateMSG": {"on_going_planning": 5, "on_going_recharging": 0},
             },
         )
-        # Checks pass; not-connected is logged, not re-raised
-        await btn.async_press()
+        with pytest.raises(HomeAssistantError, match="not connected"):
+            await btn.async_press()
 
     @pytest.mark.asyncio
     async def test_recharging_status_4_not_returning(self):
-        """on_going_recharging == 4 means docked/charged — not 'returning'."""
+        """on_going_recharging == 4 means docked/charged — raises not_connected."""
         btn = _make_button(
             YarboStartPlanButton,
             {
@@ -165,7 +186,8 @@ class TestStartPlanChecks:
                 "StateMSG": {"on_going_planning": 0, "on_going_recharging": 4},
             },
         )
-        await btn.async_press()
+        with pytest.raises(HomeAssistantError, match="not connected"):
+            await btn.async_press()
 
 
 # ---------------------------------------------------------------------------
@@ -211,10 +233,25 @@ class TestRechargeSafetyChecks:
             await btn.async_press()
 
     @pytest.mark.asyncio
-    async def test_all_checks_pass_completes_silently(self):
-        """All preconditions pass; _client is None so command is logged and swallowed."""
+    async def test_not_connected_raises(self):
+        """All preconditions pass; _client is None → HomeAssistantError raised."""
         btn = _make_button(
             YarboRechargeButton,
             {"__online__": True, "RTKMSG": {"status": 4}},
         )
-        await btn.async_press()  # must not raise
+        with pytest.raises(HomeAssistantError, match="not connected"):
+            await btn.async_press()
+
+    @pytest.mark.asyncio
+    async def test_sdk_failure_raises_home_assistant_error(self):
+        """SDK raises → wrapped as HomeAssistantError."""
+        from unittest.mock import AsyncMock
+
+        btn = _make_button(
+            YarboRechargeButton,
+            {"__online__": True, "RTKMSG": {"status": 4}},
+        )
+        btn.coordinator._client = MagicMock()
+        btn.hass.async_add_executor_job = AsyncMock(side_effect=Exception("timeout"))
+        with pytest.raises(HomeAssistantError, match="Failed to return to charge"):
+            await btn.async_press()

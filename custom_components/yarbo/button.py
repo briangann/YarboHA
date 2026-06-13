@@ -348,8 +348,11 @@ class YarboStartPlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], Button
                     "start_plan",
                     payload,
                 )
+        except HomeAssistantError:
+            raise
         except Exception as exc:
             _LOGGER.error("Failed to start plan: %s", exc)
+            raise HomeAssistantError(f"Failed to start plan: {exc}") from exc
 
     def _get_plan_percent(self) -> float | None:
         """Read plan start percent from the entity state registry."""
@@ -396,8 +399,11 @@ class YarboPausePlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], Button
                     self._device.sn,
                     self._device.type_id,
                 )
+        except HomeAssistantError:
+            raise
         except Exception as exc:
             _LOGGER.error("Failed to pause plan: %s", exc)
+            raise HomeAssistantError(f"Failed to pause plan: {exc}") from exc
 
 
 class YarboResumePlanButton(
@@ -433,8 +439,11 @@ class YarboResumePlanButton(
                     self._device.sn,
                     self._device.type_id,
                 )
+        except HomeAssistantError:
+            raise
         except Exception as exc:
             _LOGGER.error("Failed to resume plan: %s", exc)
+            raise HomeAssistantError(f"Failed to resume plan: {exc}") from exc
 
 
 class YarboStopPlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity):
@@ -468,8 +477,11 @@ class YarboStopPlanButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonE
                     self._device.sn,
                     self._device.type_id,
                 )
+        except HomeAssistantError:
+            raise
         except Exception as exc:
             _LOGGER.error("Failed to stop plan: %s", exc)
+            raise HomeAssistantError(f"Failed to stop plan: {exc}") from exc
 
 
 # ---- Recharge button ----
@@ -542,5 +554,8 @@ class YarboRechargeButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonE
                     sn,
                     self._device.type_id,
                 )
+        except HomeAssistantError:
+            raise
         except Exception as exc:
             _LOGGER.error("Failed to send recharge command: %s", exc)
+            raise HomeAssistantError(f"Failed to return to charge: {exc}") from exc
