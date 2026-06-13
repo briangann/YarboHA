@@ -101,6 +101,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self._map_raw: dict[str, dict] = {}
         self._plan_data: dict[str, list[dict]] = {}
         self._plan_feedback: dict[str, dict] = {}
+        self._cloud_points: dict[str, dict] = {}
         self._last_heartbeat: dict[str, float] = {}
         self._user_standby: dict[str, bool] = {}
         # Online-recovery bookkeeping for the request/response data a device can
@@ -259,9 +260,51 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     plan_topic,
                     _on_plan_feedback,
                 )
+                _LOGGER.info("plan_feedback subscribed for %s", device.sn)
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
-                    "plan_feedback subscribe failed for %s: %s", device.sn, err
+                    "plan_feedback subscribe failed for %s — plan select will not "
+                    "reflect app-started plans: %s",
+                    device.sn,
+                    err,
+                )
+
+            cloud_topic = f"snowbot/{device.sn}/device/cloud_points_feedback"
+
+            def _on_cloud_points(topic_str, payload, _sn=device.sn):
+                from yarbo_robot_sdk.codec import decode_mqtt_payload
+
+                try:
+                    data = decode_mqtt_payload(payload)
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.warning(
+                        "cloud_points decode failed for %s — dynamic obstacles "
+                        "unavailable: %s",
+                        _sn,
+                        err,
+                    )
+                    return
+                if not isinstance(data, dict):
+                    return
+                self._cloud_points[_sn] = data
+                if self.data is not None:
+                    self.hass.loop.call_soon_threadsafe(
+                        self.async_set_updated_data, self.data
+                    )
+
+            try:
+                await self.hass.async_add_executor_job(
+                    client._ensure_mqtt_for(device.sn).subscribe,
+                    cloud_topic,
+                    _on_cloud_points,
+                )
+                _LOGGER.info("cloud_points subscribed for %s", device.sn)
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.warning(
+                    "cloud_points subscribe failed for %s — dynamic obstacles "
+                    "will not appear on map: %s",
+                    device.sn,
+                    err,
                 )
 
         # Auto wake-up per the configured keep-awake policy. Restore persisted
@@ -553,6 +596,11 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
     def plan_feedback(self) -> dict[str, dict]:
         """Latest plan_feedback payload per device (areaIds of running plan)."""
         return self._plan_feedback
+
+    @property
+    def cloud_points(self) -> dict[str, dict]:
+        """Latest cloud_points_feedback payload per device (dynamic obstacles)."""
+        return self._cloud_points
 
     def set_selected_plan(self, sn: str, plan_id: int | None) -> None:
         """Record the user's plan selection for Start Plan button."""

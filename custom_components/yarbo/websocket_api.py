@@ -16,8 +16,10 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from yarbo_robot_sdk.device_helpers import convert_local_to_gps
 
 from .const import DOMAIN
+
 
 WS_TYPE_MAP_ZONES = "yarbo/map_zones"
 _REGISTERED_KEY = "yarbo_ws_registered"
@@ -59,9 +61,18 @@ def _handle_map_zones(
                 "longitude": ref["longitude"],
             }
 
+        obstacles_geojson = _build_obstacles_geojson(
+            coordinator.cloud_points.get(sn) or {}, ref
+        )
+
         connection.send_result(
             msg["id"],
-            {"sn": sn, "geojson": geojson, "center": center},
+            {
+                "sn": sn,
+                "geojson": geojson,
+                "center": center,
+                "obstacles_geojson": obstacles_geojson,
+            },
         )
         return
 
@@ -70,3 +81,38 @@ def _handle_map_zones(
         websocket_api.const.ERR_NOT_FOUND,
         f"No map data available for sn={sn}",
     )
+
+
+def _build_obstacles_geojson(cloud_points: dict, ref: dict) -> dict | None:
+    """Project cloud_points_feedback barrier clusters to GPS GeoJSON features."""
+    barriers = cloud_points.get("tmp_barrier_points") or []
+    ref_lat = ref.get("latitude")
+    ref_lon = ref.get("longitude")
+    if not barriers or ref_lat is None or ref_lon is None:
+        return None
+    features = []
+    for i, cluster in enumerate(barriers):
+        if not isinstance(cluster, list) or not cluster:
+            continue
+        coords = []
+        for pt in cluster:
+            try:
+                lat, lon = convert_local_to_gps(
+                    ref_lat, ref_lon, float(pt.get("x", 0)), float(pt.get("y", 0))
+                )
+                coords.append([round(lon, 7), round(lat, 7)])
+            except Exception:  # noqa: BLE001
+                pass
+        if not coords:
+            continue
+        geom = (
+            {"type": "Point", "coordinates": coords[0]}
+            if len(coords) == 1
+            else {"type": "MultiPoint", "coordinates": coords}
+        )
+        features.append(
+            {"type": "Feature", "geometry": geom, "properties": {"obstacle_index": i}}
+        )
+    if not features:
+        return None
+    return {"type": "FeatureCollection", "features": features}
