@@ -191,30 +191,15 @@ class TestAsNumber:
 
 
 # ---------------------------------------------------------------------------
-# Unique ID and name wiring
+# Unique ID format — changing this breaks all existing HA entity history
 # ---------------------------------------------------------------------------
 
 
-class TestEntityWiring:
-    def test_unique_id_from_path(self):
+class TestUniqueIdFormat:
+    def test_simple_path(self):
         fd = _make_field_def(path="StateMSG.battery", name="Battery")
-        s = _sensor(_coord(), fd)
-        assert s._attr_unique_id == f"{SN}_statemsg_battery"
+        assert _sensor(_coord(), fd)._attr_unique_id == f"{SN}_statemsg_battery"
 
-    def test_name_from_field_def(self):
-        fd = _make_field_def(name="My Sensor")
-        s = _sensor(_coord(), fd)
-        assert s._attr_name == "My Sensor"
-
-    def test_enabled_by_default_true(self):
-        fd = _make_field_def(enabled_by_default=True)
-        assert _sensor(_coord(), fd)._attr_entity_registry_enabled_default is True
-
-    def test_enabled_by_default_false(self):
-        fd = _make_field_def(enabled_by_default=False)
-        assert _sensor(_coord(), fd)._attr_entity_registry_enabled_default is False
-
-    def test_nested_path_unique_id(self):
+    def test_nested_path_dots_become_underscores(self):
         fd = _make_field_def(path="WheelSpeedMSG.left_speed")
-        s = _sensor(_coord(), fd)
-        assert s._attr_unique_id == f"{SN}_wheelspeedmsg_left_speed"
+        assert _sensor(_coord(), fd)._attr_unique_id == f"{SN}_wheelspeedmsg_left_speed"

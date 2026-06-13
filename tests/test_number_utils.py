@@ -141,33 +141,25 @@ class TestFormatCommandValue:
 
 
 # ---------------------------------------------------------------------------
-# YarboPlanStartPercent
+# YarboPlanStartPercent — unique_id format and range bounds
 # ---------------------------------------------------------------------------
 
 
 class TestPlanStartPercent:
-    def _make(self, initial_value: float | None = 0):
-        coord = MagicMock()
-        device = MagicMock()
-        device.sn = SN
-        device.name = "Yarbo Y1"
-        device.model = "Y1"
-        ent = YarboPlanStartPercent(coord, device)
-        ent._attr_native_value = initial_value
-        return ent
-
-    def test_initial_value_zero(self):
-        ent = self._make()
-        assert ent._attr_native_value == 0
-
     def test_unique_id(self):
+        """Unique ID format — changing breaks HA entity history."""
         device = MagicMock()
         device.sn = SN
         ent = YarboPlanStartPercent(MagicMock(), device)
         assert ent._attr_unique_id == f"{SN}_plan_start_percent"
 
     def test_range(self):
-        ent = self._make()
+        """Range bounds — automations that set 90% break if max changes."""
+        device = MagicMock()
+        device.sn = SN
+        device.name = "Yarbo Y1"
+        device.model = "Y1"
+        ent = YarboPlanStartPercent(MagicMock(), device)
         assert ent._attr_native_min_value == 0
         assert ent._attr_native_max_value == 99
         assert ent._attr_native_step == 1

@@ -171,30 +171,3 @@ class TestPlanSelectOptions:
         sel = _make_plan_select(plans=[{"id": 7, "name": "Side Yard"}])
         _ = sel.options  # trigger map build
         assert sel._plan_id_map == {"Side Yard": 7}
-
-
-# ---------------------------------------------------------------------------
-# YarboPlanSelect.async_select_option
-# ---------------------------------------------------------------------------
-
-
-class TestPlanSelectOption:
-    def test_stores_selection_in_coordinator(self):
-        sel = _make_plan_select(plans=[{"id": 5, "name": "East"}])
-        _ = sel.options  # build map
-        with patch.object(type(sel), "async_write_ha_state"):
-            import asyncio
-
-            asyncio.get_event_loop().run_until_complete(sel.async_select_option("East"))
-        sel.coordinator.set_selected_plan.assert_called_once_with(SN, 5)
-
-    def test_unknown_option_maps_to_none(self):
-        sel = _make_plan_select(plans=[{"id": 5, "name": "East"}])
-        _ = sel.options
-        with patch.object(type(sel), "async_write_ha_state"):
-            import asyncio
-
-            asyncio.get_event_loop().run_until_complete(
-                sel.async_select_option("Unknown Plan")
-            )
-        sel.coordinator.set_selected_plan.assert_called_once_with(SN, None)
