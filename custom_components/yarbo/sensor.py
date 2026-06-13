@@ -1456,18 +1456,21 @@ class YarboCurrentPlanSensor(
 
 
 class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
-    """Actual cleaned area in the current run (m²)."""
+    """Actual cleaned area in the current run — unit follows HA unit system."""
 
     _attr_has_entity_name = True
     _attr_name = "Completed Plan Area"
     _attr_icon = "mdi:texture-box"
-    _attr_native_unit_of_measurement = "m²"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator)
         self._device = device
         self._attr_unique_id = f"{device.sn}_clean_area"
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        return _area_unit(self.hass)
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -1478,7 +1481,7 @@ class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], Sensor
         val = (self.coordinator.plan_feedback.get(self._device.sn) or {}).get(
             "actualCleanArea"
         )
-        return round(float(val), 2) if val is not None else None
+        return _convert_area(self.hass, float(val)) if val is not None else None
 
 
 class YarboBatteryConsumptionSensor(
@@ -1551,16 +1554,19 @@ class YarboPlanProgressSensor(_YarboPlanFeedbackBase):
 
 
 class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
-    """Remaining area to clean in current run (m²)."""
+    """Remaining area — unit follows HA unit system."""
 
     _attr_name = "Remaining Plan Area"
     _attr_icon = "mdi:texture-box"
-    _attr_native_unit_of_measurement = "m²"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
         self._attr_unique_id = f"{device.sn}_remaining_area"
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        return _area_unit(self.hass)
 
     @property
     def native_value(self) -> float | None:
@@ -1569,7 +1575,20 @@ class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
         total = pf.get("totalCleanArea")
         if actual is None or total is None:
             return None
-        return round(max(float(total) - float(actual), 0), 2)
+        return _convert_area(self.hass, max(float(total) - float(actual), 0))
+
+
+_M2_TO_FT2 = 10.7639
+
+
+def _area_unit(hass) -> str:
+    """Return area unit based on HA unit system preference."""
+    return "m²" if hass.config.units.is_metric else "ft²"
+
+
+def _convert_area(hass, m2: float) -> float:
+    """Convert m² to user's preferred area unit."""
+    return round(m2, 2) if hass.config.units.is_metric else round(m2 * _M2_TO_FT2, 2)
 
 
 def _fmt_duration(seconds: float) -> str:
@@ -1627,11 +1646,10 @@ class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
 
 
 class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
-    """Total area of the current plan (m²)."""
+    """Total plan area — unit follows HA unit system."""
 
     _attr_name = "Total Plan Area"
     _attr_icon = "mdi:texture-box"
-    _attr_native_unit_of_measurement = "m²"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
@@ -1639,9 +1657,13 @@ class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
         self._attr_unique_id = f"{device.sn}_total_plan_area"
 
     @property
+    def native_unit_of_measurement(self) -> str:
+        return _area_unit(self.hass)
+
+    @property
     def native_value(self) -> float | None:
         val = self._pf().get("totalCleanArea")
-        return round(float(val), 2) if val is not None else None
+        return _convert_area(self.hass, float(val)) if val is not None else None
 
 
 class YarboTotalPlanTimeSensor(_YarboPlanFeedbackBase):
