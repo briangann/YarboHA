@@ -82,7 +82,11 @@ def _mock_ha_modules() -> None:
         "homeassistant.helpers.entity_platform": MagicMock(),
         "homeassistant.helpers.event": MagicMock(),
         "homeassistant.helpers.restore_state": MagicMock(),
+        "homeassistant.helpers.storage": MagicMock(),
         "homeassistant.helpers.update_coordinator": coordinator_mod,
+        "homeassistant.components.device_tracker.const": MagicMock(),
+        "homeassistant.components.websocket_api": MagicMock(),
+        "homeassistant.components.websocket_api.const": MagicMock(),
     }
     for mod, mock in module_map.items():
         if mod not in sys.modules:

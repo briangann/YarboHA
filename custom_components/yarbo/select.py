@@ -8,14 +8,14 @@ import time
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
-from yarbo_robot_sdk import get_control_field_definitions
-from yarbo_robot_sdk.device_helpers import extract_field
+from .entity_filters import control_matches_device
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Yarbo select entities dynamically from SDK control field definitions."""
+    from yarbo_robot_sdk import get_control_field_definitions
 
     coordinator: YarboDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
@@ -37,7 +38,9 @@ async def async_setup_entry(
             get_control_field_definitions, device.type_id
         )
         for ctrl_def in ctrl_defs:
-            if ctrl_def.entity_type == "select":
+            if ctrl_def.entity_type == "select" and control_matches_device(
+                coordinator, device, ctrl_def
+            ):
                 entities.append(YarboConfigSelect(coordinator, device, ctrl_def))
 
         # Hardcoded Plan Select (dynamic options from plan list)
@@ -123,11 +126,12 @@ class YarboConfigSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEnt
         if self._ctrl_def.extra_payload:
             payload.update(self._ctrl_def.extra_payload)
 
-        if self.coordinator.client is None:
-            return
         try:
+            client = self.coordinator._client
+            if client is None:
+                raise HomeAssistantError("Cannot send command: not connected")
             await self.hass.async_add_executor_job(
-                self.coordinator.client.mqtt_publish_command,
+                client.mqtt_publish_command,
                 self._device.sn,
                 self._device.type_id,
                 self._ctrl_def.command_topic,
@@ -153,6 +157,7 @@ class YarboConfigSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEnt
         device_data = self.coordinator.data.get(self._device.sn)
         if device_data is None:
             return None
+        from yarbo_robot_sdk.device_helpers import extract_field
 
         return extract_field(device_data, self._ctrl_def.path)
 
@@ -189,58 +194,9 @@ class YarboPlanSelect(CoordinatorEntity[YarboDataUpdateCoordinator], SelectEntit
         }
         return list(self._plan_id_map.keys())
 
-    @property
-    def current_option(self) -> str | None:
-        """Return running plan name from plan_feedback, falling back to user selection."""
-        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
-        running_area_ids = set(pf.get("areaIds") or [])
-        if running_area_ids:
-            plans = self.coordinator.plan_data.get(self._device.sn, [])
-            for plan in plans:
-                if set(plan.get("areaIds") or []) == running_area_ids:
-                    return plan.get("name")
-        return self._attr_current_option
-
     async def async_select_option(self, option: str) -> None:
         """Record plan selection (no MQTT command — Start Plan button sends it)."""
         self._attr_current_option = option
         plan_id = self._plan_id_map.get(option)
         self.coordinator.set_selected_plan(self._device.sn, plan_id)
         self.async_write_ha_state()
-
-    @property
-    def extra_state_attributes(self) -> dict:
-        """Expose plan metadata + live run state (scalar values only).
-
-        plan_path_geojson has been moved to YarboPlanPathSensor to avoid
-        exceeding HA's 16 KB recorder attribute limit.
-        """
-        plans = self.coordinator.plan_data.get(self._device.sn, [])
-        plans_out = [
-            {
-                "id": p.get("id"),
-                "name": p.get("name"),
-                "area_ids": p.get("areaIds") or [],
-            }
-            for p in plans
-        ]
-        area_ids: list = []
-        current_plan_id = None
-        current = self._attr_current_option
-        if current:
-            current_plan_id = self._plan_id_map.get(current)
-            for p in plans:
-                if p.get("name") == current:
-                    area_ids = list(p.get("areaIds") or [])
-                    break
-
-        pf = getattr(self.coordinator, "plan_feedback", {}).get(self._device.sn) or {}
-        return {
-            "plan_id": current_plan_id,
-            "area_ids": area_ids,
-            "plans": plans_out,
-            "running_area_id": pf.get("cleanAreaId"),
-            "running_area_ids": pf.get("areaIds") or [],
-            "actual_clean_area": pf.get("actualCleanArea"),
-            "battery_consumption": pf.get("battery_consumption"),
-        }

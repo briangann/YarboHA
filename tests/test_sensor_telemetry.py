@@ -1,198 +1,220 @@
-"""Tests for raw telemetry sensors (WheelSpeedMSG, RunningStatusMSG, etc.)."""
+"""Tests for YarboConfigSensor numeric, enum, and value_map extraction.
 
-import pytest
+Covers: plain field extraction, numeric coercion, value_map lookup,
+_as_number edge cases, and unique_id / name wiring.
+"""
 
 from unittest.mock import MagicMock
 
-from custom_components.yarbo.sensor import (
-    YarboChuteSensor,
-    YarboGyroRollSensor,
-    YarboGyroPitchSensor,
-    YarboOdomConfidenceSensor,
-    YarboOdometryLeftSensor,
-    YarboOdometryRightSensor,
-    YarboProximityCenterSensor,
-    YarboProximityLeftSensor,
-    YarboProximityRightSensor,
-    YarboRainSensor,
-    YarboSpeedSensor,
-)
+from custom_components.yarbo.sensor import YarboConfigSensor
 
 SN = "DEVICE_SN"
+
+
+def _coord(device_data: dict | None = None):
+    c = MagicMock()
+    c.data = {SN: device_data} if device_data is not None else {}
+    return c
 
 
 def _device():
     d = MagicMock()
     d.sn = SN
-    d.name = "Yarbo Test"
-    d.model = "Y1000"
+    d.name = "Yarbo Y1"
+    d.model = "Y1"
     return d
 
 
-def _coord(device_data: dict):
-    c = MagicMock()
-    c.data = {SN: device_data}
-    return c
+def _make_field_def(
+    path="StateMSG.battery",
+    custom_extractor=None,
+    value_map=None,
+    device_class=None,
+    unit=None,
+    icon=None,
+    enabled_by_default=True,
+    name="Battery",
+):
+    fd = MagicMock()
+    fd.path = path
+    fd.custom_extractor = custom_extractor
+    fd.value_map = value_map
+    fd.device_class = device_class
+    fd.unit = unit
+    fd.icon = icon
+    fd.enabled_by_default = enabled_by_default
+    fd.name = name
+    return fd
 
 
-def _make(cls, device_data: dict):
-    """Instantiate a sensor by-passing HA's CoordinatorEntity.__init__."""
-    sensor = object.__new__(cls)
-    sensor.coordinator = _coord(device_data)
-    sensor._device = _device()
-    return sensor
+def _sensor(coord, field_def):
+    return YarboConfigSensor(coord, _device(), field_def)
 
 
-# ── Speed ─────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Plain numeric extraction
+# ---------------------------------------------------------------------------
 
 
-class TestYarboSpeedSensor:
-    def test_average_speed(self):
-        s = _make(YarboSpeedSensor, {"WheelSpeedMSG": {"left": 0.5, "right": 0.51}})
-        assert s.native_value == pytest.approx(0.505, abs=1e-3)
-
-    def test_zero_speed(self):
-        s = _make(YarboSpeedSensor, {"WheelSpeedMSG": {"left": 0.0, "right": 0.0}})
-        assert s.native_value == 0.0
-
-    def test_missing_wheel_msg(self):
-        s = _make(YarboSpeedSensor, {})
-        assert s.native_value is None
-
-    def test_partial_wheel_msg(self):
-        s = _make(YarboSpeedSensor, {"WheelSpeedMSG": {"left": 0.5}})
-        assert s.native_value is None
-
-
-# ── Odometry ──────────────────────────────────────────────────────────────────
-
-
-class TestYarboOdometrySensors:
-    def test_left_distance(self):
-        s = _make(YarboOdometryLeftSensor, {"WheelSpeedMSG": {"dist_left": 1234.567}})
-        assert s.native_value == pytest.approx(1234.6, abs=0.1)
-
-    def test_right_distance(self):
-        s = _make(YarboOdometryRightSensor, {"WheelSpeedMSG": {"dist_right": 999.1}})
-        assert s.native_value == pytest.approx(999.1, abs=0.1)
-
-    def test_missing_returns_none(self):
-        s = _make(YarboOdometryLeftSensor, {})
-        assert s.native_value is None
-
-
-# ── Positioning confidence ────────────────────────────────────────────────────
-
-
-class TestYarboOdomConfidenceSensor:
-    def test_confidence_value(self):
-        s = _make(YarboOdomConfidenceSensor, {"combined_odom_confidence": 0.9151})
-        assert s.native_value == pytest.approx(0.915, abs=1e-3)
-
-    def test_missing_returns_none(self):
-        s = _make(YarboOdomConfidenceSensor, {})
-        assert s.native_value is None
-
-
-# ── Rain sensor ───────────────────────────────────────────────────────────────
-
-
-class TestYarboRainSensor:
-    def test_rain_value(self):
-        s = _make(YarboRainSensor, {"RunningStatusMSG": {"rain_sensor_data": 23}})
-        assert s.native_value == 23.0
-
-    def test_zero_rain(self):
-        s = _make(YarboRainSensor, {"RunningStatusMSG": {"rain_sensor_data": 0}})
-        assert s.native_value == 0.0
-
-    def test_missing_returns_none(self):
-        s = _make(YarboRainSensor, {})
-        assert s.native_value is None
-
-
-# ── Chute angle (Snow Blower only) ───────────────────────────────────────────
-
-
-class TestYarboChuteSensor:
-    def _make_with_head(self, head_type: int | None, chute_angle=45):
-        head_msg = {} if head_type is None else {"head_type": head_type}
-        data = {
-            "HeadMsg": head_msg,
-            "RunningStatusMSG": {"chute_angle": chute_angle},
-        }
-        s = object.__new__(YarboChuteSensor)
-        s.coordinator = _coord(data)
-        s._device = _device()
-        return s
-
-    def test_value_with_snow_blower(self):
-        s = self._make_with_head(head_type=1, chute_angle=90)
-        assert s.native_value == 90.0
-
-    def test_available_with_snow_blower(self):
-        s = self._make_with_head(head_type=1)
-        # super().available is MagicMock (truthy), head check passes
-        assert s.available is True
-
-    def test_unavailable_with_mower(self):
-        s = self._make_with_head(head_type=3)
-        assert s.available is False
-
-    def test_unavailable_with_mower_pro(self):
-        s = self._make_with_head(head_type=5)
-        assert s.available is False
-
-    def test_available_when_head_type_unknown(self):
-        # head_type not yet received — default to available
-        s = self._make_with_head(head_type=None)
-        assert s.available is True
-
-
-# ── Proximity ─────────────────────────────────────────────────────────────────
-
-
-class TestYarboProximitySensors:
-    def _data(self, lf=9999, mt=9999, rf=9999):
-        return {"ultrasonic_msg": {"lf_dis": lf, "mt_dis": mt, "rf_dis": rf}}
-
-    def test_left_clear(self):
-        s = _make(YarboProximityLeftSensor, self._data(lf=9999))
-        assert s.native_value == 9999.0
-
-    def test_center_obstacle(self):
-        s = _make(YarboProximityCenterSensor, self._data(mt=250))
-        assert s.native_value == 250.0
-
-    def test_right_obstacle(self):
-        s = _make(YarboProximityRightSensor, self._data(rf=180))
-        assert s.native_value == 180.0
-
-    def test_missing_ultrasonic_msg(self):
-        s = _make(YarboProximityLeftSensor, {})
-        assert s.native_value is None
-
-
-# ── Gyro (disabled by default) ────────────────────────────────────────────────
-
-
-class TestYarboGyroSensors:
-    def test_pitch_value(self):
-        s = _make(
-            YarboGyroPitchSensor, {"RunningStatusMSG": {"head_gyro_pitch": 1.0237}}
+class TestNumericExtraction:
+    def _make(self, raw, unit="%", device_class="battery"):
+        coord = _coord({"StateMSG": {"battery": raw}})
+        fd = _make_field_def(
+            path="StateMSG.battery", unit=unit, device_class=device_class
         )
-        assert s.native_value == pytest.approx(1.024, abs=1e-3)
+        return _sensor(coord, fd)
 
-    def test_roll_value(self):
-        s = _make(
-            YarboGyroRollSensor, {"RunningStatusMSG": {"head_gyro_roll": -1.4416}}
+    def test_integer_passthrough(self):
+        assert self._make(85).native_value == 85
+
+    def test_float_passthrough(self):
+        assert self._make(85.5).native_value == 85.5
+
+    def test_string_number_coerced(self):
+        assert self._make("85").native_value == 85
+
+    def test_whole_float_string_coerced_to_int(self):
+        assert self._make("85.0").native_value == 85
+
+    def test_empty_string_returns_none(self):
+        assert self._make("").native_value is None
+
+    def test_non_numeric_string_returns_none(self):
+        assert self._make("N/A").native_value is None
+
+    def test_missing_field_returns_none(self):
+        coord = _coord({})
+        fd = _make_field_def(unit="%", device_class="battery")
+        assert _sensor(coord, fd).native_value is None
+
+    def test_no_data_returns_none(self):
+        fd = _make_field_def(unit="%", device_class="battery")
+        assert _sensor(_coord(), fd).native_value is None
+
+
+# ---------------------------------------------------------------------------
+# Non-numeric plain extraction (no unit, no measurement device_class)
+# ---------------------------------------------------------------------------
+
+
+class TestPlainExtraction:
+    def _make(self, raw):
+        coord = _coord({"StateMSG": {"firmware": raw}})
+        fd = _make_field_def(
+            path="StateMSG.firmware",
+            unit=None,
+            device_class=None,
+            name="Firmware",
         )
-        assert s.native_value == pytest.approx(-1.442, abs=1e-3)
+        return _sensor(coord, fd)
 
-    def test_pitch_missing(self):
-        s = _make(YarboGyroPitchSensor, {})
-        assert s.native_value is None
+    def test_string_passthrough(self):
+        assert self._make("1.2.3").native_value == "1.2.3"
 
-    def test_gyro_disabled_by_default(self):
-        assert YarboGyroPitchSensor._attr_entity_registry_enabled_default is False
-        assert YarboGyroRollSensor._attr_entity_registry_enabled_default is False
+    def test_integer_passthrough(self):
+        assert self._make(5).native_value == 5
+
+    def test_none_returns_none(self):
+        assert self._make(None).native_value is None
+
+
+# ---------------------------------------------------------------------------
+# value_map (enum) extraction
+# ---------------------------------------------------------------------------
+
+
+class TestValueMap:
+    def _make(self, raw, value_map):
+        coord = _coord({"StateMSG": {"working_state": raw}})
+        fd = _make_field_def(
+            path="StateMSG.working_state",
+            value_map=value_map,
+            unit=None,
+            device_class=None,
+            name="Working State",
+        )
+        return _sensor(coord, fd)
+
+    def test_mapped_value_returned(self):
+        assert self._make(0, {"0": "Idle", "1": "Mowing"}).native_value == "Idle"
+
+    def test_second_mapped_value(self):
+        assert self._make(1, {"0": "Idle", "1": "Mowing"}).native_value == "Mowing"
+
+    def test_unmapped_positive_returns_none(self):
+        assert self._make(99, {"0": "Idle"}).native_value is None
+
+    def test_negative_falls_back_to_minus_one(self):
+        assert self._make(-5, {"0": "Idle", "-1": "Error"}).native_value == "Error"
+
+    def test_negative_no_fallback_returns_none(self):
+        assert self._make(-5, {"0": "Idle"}).native_value is None
+
+    def test_missing_data_returns_none(self):
+        fd = _make_field_def(
+            value_map={"0": "Idle"},
+            unit=None,
+            device_class=None,
+        )
+        assert _sensor(_coord(), fd).native_value is None
+
+
+# ---------------------------------------------------------------------------
+# _as_number static method directly
+# ---------------------------------------------------------------------------
+
+
+class TestAsNumber:
+    def test_int(self):
+        assert YarboConfigSensor._as_number(42) == 42
+
+    def test_float(self):
+        assert YarboConfigSensor._as_number(3.14) == 3.14
+
+    def test_whole_float_becomes_int(self):
+        assert YarboConfigSensor._as_number(3.0) == 3
+
+    def test_string_int(self):
+        assert YarboConfigSensor._as_number("42") == 42
+
+    def test_string_float(self):
+        assert YarboConfigSensor._as_number("3.14") == 3.14
+
+    def test_empty_string_returns_none(self):
+        assert YarboConfigSensor._as_number("") is None
+
+    def test_none_returns_none(self):
+        assert YarboConfigSensor._as_number(None) is None
+
+    def test_non_numeric_string_returns_none(self):
+        assert YarboConfigSensor._as_number("abc") is None
+
+
+# ---------------------------------------------------------------------------
+# Unique ID and name wiring
+# ---------------------------------------------------------------------------
+
+
+class TestEntityWiring:
+    def test_unique_id_from_path(self):
+        fd = _make_field_def(path="StateMSG.battery", name="Battery")
+        s = _sensor(_coord(), fd)
+        assert s._attr_unique_id == f"{SN}_statemsg_battery"
+
+    def test_name_from_field_def(self):
+        fd = _make_field_def(name="My Sensor")
+        s = _sensor(_coord(), fd)
+        assert s._attr_name == "My Sensor"
+
+    def test_enabled_by_default_true(self):
+        fd = _make_field_def(enabled_by_default=True)
+        assert _sensor(_coord(), fd)._attr_entity_registry_enabled_default is True
+
+    def test_enabled_by_default_false(self):
+        fd = _make_field_def(enabled_by_default=False)
+        assert _sensor(_coord(), fd)._attr_entity_registry_enabled_default is False
+
+    def test_nested_path_unique_id(self):
+        fd = _make_field_def(path="WheelSpeedMSG.left_speed")
+        s = _sensor(_coord(), fd)
+        assert s._attr_unique_id == f"{SN}_wheelspeedmsg_left_speed"
