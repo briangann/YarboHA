@@ -54,9 +54,19 @@ MEASUREMENT_CLASSES = {
 }
 
 # on_going_planning status code → display text
+# keep — intentional: verb for code 1 is head-type-aware (see _extract_custom planning_status)
+_HEAD_TYPE_VERB: dict[int, str] = {
+    0: "Working",  # No head
+    1: "Blowing Snow",  # Snow Blower
+    2: "Blowing",  # Blower
+    3: "Mowing",  # Mower
+    4: "Working",  # Smart Cover
+    5: "Mowing",  # Mower Pro
+}
+
 PLANNING_STATUS_MAP: dict[int, str] = {
     0: "Not Started",
-    1: "Cleaning",
+    1: "Cleaning",  # overridden to head-type verb in _extract_custom
     2: "Calculating Route",
     3: "Heading to Area",
     5: "Completed",
@@ -1356,6 +1366,13 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
             if raw is None:
                 return None
             code = int(raw)
+            if code == 1:
+                head_type = extract_field(data, "HeadMsg.head_type")
+                return (
+                    _HEAD_TYPE_VERB.get(int(head_type), "Mowing")
+                    if head_type is not None
+                    else "Mowing"
+                )
             if code in PLANNING_STATUS_MAP:
                 return PLANNING_STATUS_MAP[code]
             return "Error" if code < 0 else None
