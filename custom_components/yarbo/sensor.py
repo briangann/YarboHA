@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from yarbo_robot_sdk.device_helpers import convert_local_to_gps
 
 from .const import DOMAIN
 from .coordinator import YarboDataUpdateCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 # keep — intentional: SDK marks these disabled_by_default conservatively; all are
 # useful diagnostic sensors that should be on out of the box for this integration.
@@ -120,6 +126,19 @@ async def async_setup_entry(
 
     for device in coordinator.devices:
         entities.append(YarboMapSensor(coordinator, device))
+
+        # keep — intentional: plan feedback sensors restored; upstream removed these
+        # but they are essential for dashboard monitoring of plan execution.
+        entities.append(YarboPlanPathSensor(coordinator, device))
+        entities.append(YarboCurrentPlanSensor(coordinator, device))
+        entities.append(YarboCleanAreaSensor(coordinator, device))
+        entities.append(YarboBatteryConsumptionSensor(coordinator, device))
+        entities.append(YarboPlanProgressSensor(coordinator, device))
+        entities.append(YarboRemainingAreaSensor(coordinator, device))
+        entities.append(YarboTimeRemainingSensor(coordinator, device))
+        entities.append(YarboElapsedTimeSensor(coordinator, device))
+        entities.append(YarboTotalPlanAreaSensor(coordinator, device))
+        entities.append(YarboTotalPlanTimeSensor(coordinator, device))
 
     async_add_entities(entities)
 
@@ -306,3 +325,319 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         if self.coordinator.data and self._device.sn in self.coordinator.data:
             return self.coordinator.data[self._device.sn]
         return None
+
+
+# ---------------------------------------------------------------------------
+# Plan feedback sensors — keep: restored from upstream removal
+# All read from coordinator.plan_feedback[sn] (plan_feedback MQTT topic)
+# ---------------------------------------------------------------------------
+
+
+def _plan_device_info(device) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, device.sn)},
+        name=device.name,
+        manufacturer="Yarbo",
+        model=device.model,
+        serial_number=device.sn,
+    )
+
+
+class YarboCurrentPlanSensor(
+    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
+):
+    """Name of the currently running plan (from plan_feedback areaIds match)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Current Plan"
+    _attr_icon = "mdi:clipboard-play-outline"
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_current_plan"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return _plan_device_info(self._device)
+
+    @property
+    def native_value(self) -> str | None:
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        running_area_ids = set(pf.get("areaIds") or [])
+        if not running_area_ids:
+            return None
+        for plan in self.coordinator.plan_data.get(self._device.sn, []):
+            if set(plan.get("areaIds") or []) == running_area_ids:
+                return plan.get("name")
+        return None
+
+
+class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
+    """Actual cleaned area in the current run (m²)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Completed Plan Area"
+    _attr_icon = "mdi:texture-box"
+    _attr_native_unit_of_measurement = "m²"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_clean_area"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return _plan_device_info(self._device)
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self.coordinator.plan_feedback.get(self._device.sn) or {}).get(
+            "actualCleanArea"
+        )
+        return round(float(val), 2) if val is not None else None
+
+
+class YarboBatteryConsumptionSensor(
+    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
+):
+    """Battery consumed during the current run (%)."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Plan Battery Consumption"
+    _attr_icon = "mdi:battery-minus"
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_battery_consumption"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return _plan_device_info(self._device)
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self.coordinator.plan_feedback.get(self._device.sn) or {}).get(
+            "battery_consumption"
+        )
+        return float(val) if val is not None else None
+
+
+class _YarboPlanFeedbackBase(
+    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
+):
+    """Shared base for sensors derived from plan_feedback."""
+
+    _attr_has_entity_name = True
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return _plan_device_info(self._device)
+
+    def _pf(self) -> dict:
+        return self.coordinator.plan_feedback.get(self._device.sn) or {}
+
+
+class YarboPlanProgressSensor(_YarboPlanFeedbackBase):
+    """Plan completion percentage."""
+
+    _attr_name = "Plan Progress"
+    _attr_icon = "mdi:progress-clock"
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_plan_progress"
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self._pf()
+        actual = pf.get("actualCleanArea")
+        total = pf.get("totalCleanArea")
+        if actual is None or not total:
+            return None
+        return round(min(float(actual) / float(total) * 100, 100), 1)
+
+
+class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
+    """Remaining area to clean in current run (m²)."""
+
+    _attr_name = "Remaining Plan Area"
+    _attr_icon = "mdi:texture-box"
+    _attr_native_unit_of_measurement = "m²"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_remaining_area"
+
+    @property
+    def native_value(self) -> float | None:
+        pf = self._pf()
+        actual = pf.get("actualCleanArea")
+        total = pf.get("totalCleanArea")
+        if actual is None or total is None:
+            return None
+        return round(max(float(total) - float(actual), 0), 2)
+
+
+class YarboTimeRemainingSensor(_YarboPlanFeedbackBase):
+    """Estimated time remaining in current plan (seconds)."""
+
+    _attr_name = "Estimated Time Remaining"
+    _attr_icon = "mdi:timer-outline"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_time_remaining"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("leftTime")
+        return round(max(float(val), 0), 0) if val is not None else None
+
+
+class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
+    """Elapsed time in current plan run (seconds)."""
+
+    _attr_name = "Plan Elapsed Time"
+    _attr_icon = "mdi:timer"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_elapsed_time"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("duration")
+        return round(float(val), 0) if val is not None else None
+
+
+class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
+    """Total area of the current plan (m²)."""
+
+    _attr_name = "Total Plan Area"
+    _attr_icon = "mdi:texture-box"
+    _attr_native_unit_of_measurement = "m²"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_total_plan_area"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("totalCleanArea")
+        return round(float(val), 2) if val is not None else None
+
+
+class YarboTotalPlanTimeSensor(_YarboPlanFeedbackBase):
+    """Estimated total time for the current plan (seconds)."""
+
+    _attr_name = "Total Plan Time"
+    _attr_icon = "mdi:timer-outline"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_total_plan_time"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("totalTime")
+        return round(float(val), 0) if val is not None else None
+
+
+class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
+    """Live mowing path GeoJSON for the current plan run.
+
+    State = number of path segments received.
+    Attribute 'geojson' = GeoJSON FeatureCollection (LineString per segment).
+    Disabled by default — large attribute; exclude from recorder to avoid 16 KB warning.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Plan Path"
+    _attr_icon = "mdi:map-marker-path"
+    _attr_entity_registry_enabled_default = False  # keep — large attr, opt-in only
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_plan_path"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return _plan_device_info(self._device)
+
+    @property
+    def native_value(self) -> int | None:
+        segments = (self.coordinator.plan_feedback.get(self._device.sn) or {}).get(
+            "cleanPathProgress"
+        ) or []
+        return len(segments) if segments else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        segments = pf.get("cleanPathProgress") or []
+        if not segments:
+            return {}
+        gps_ref = self.coordinator.gps_refs.get(self._device.sn) or {}
+        ref = gps_ref.get("ref") or {}
+        ref_lat = ref.get("latitude")
+        ref_lon = ref.get("longitude")
+        if ref_lat is None or ref_lon is None:
+            return {}
+        try:
+            features = []
+            for seg in segments:
+                pts = seg.get("path") or []
+                if len(pts) < 2:
+                    continue
+                coords = []
+                for pt in pts:
+                    try:
+                        lat, lon = convert_local_to_gps(
+                            ref_lat,
+                            ref_lon,
+                            float(pt.get("x", 0)),
+                            float(pt.get("y", 0)),
+                        )
+                        coords.append([round(lon, 7), round(lat, 7)])
+                    except Exception:  # noqa: BLE001
+                        pass
+                if len(coords) >= 2:
+                    features.append(
+                        {
+                            "type": "Feature",
+                            "geometry": {"type": "LineString", "coordinates": coords},
+                            "properties": {
+                                "area_id": seg.get("id"),
+                                "clean_index": seg.get("clean_index"),
+                                "clean_times": seg.get("clean_times"),
+                            },
+                        }
+                    )
+            if features:
+                return {"geojson": {"type": "FeatureCollection", "features": features}}
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.warning("plan_path geojson build failed: %s", err)
+        return {}
