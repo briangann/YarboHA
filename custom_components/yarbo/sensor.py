@@ -140,7 +140,274 @@ async def async_setup_entry(
         entities.append(YarboTotalPlanAreaSensor(coordinator, device))
         entities.append(YarboTotalPlanTimeSensor(coordinator, device))
 
+        # keep — intentional: raw telemetry sensors restored from upstream removal (v0.4.8)
+        # WheelSpeedMSG, ultrasonic_msg, RunningStatusMSG gyro/chute are not in SDK field defs.
+        entities.append(YarboSpeedSensor(coordinator, device))
+        entities.append(YarboOdometryLeftSensor(coordinator, device))
+        entities.append(YarboOdometryRightSensor(coordinator, device))
+        entities.append(YarboOdomConfidenceSensor(coordinator, device))
+        entities.append(YarboRainSensor(coordinator, device))
+        entities.append(YarboChuteSensor(coordinator, device))  # Snow Blower head only
+        entities.append(YarboProximityLeftSensor(coordinator, device))
+        entities.append(YarboProximityCenterSensor(coordinator, device))
+        entities.append(YarboProximityRightSensor(coordinator, device))
+        entities.append(YarboGyroPitchSensor(coordinator, device))
+        entities.append(YarboGyroRollSensor(coordinator, device))
     async_add_entities(entities)
+
+
+# ---------------------------------------------------------------------------
+# Raw telemetry sensors — keep: restored from upstream removal (v0.4.8)
+# These read directly from coordinator.data[sn] MQTT payloads; the upstream
+# config-driven sensor architecture does not expose WheelSpeedMSG,
+# ultrasonic_msg, or the RunningStatusMSG gyro/chute fields via SDK field
+# definitions, so hand-written classes are required.
+# ---------------------------------------------------------------------------
+
+_HEAD_SNOW_BLOWER: tuple[int, ...] = (1,)  # chute angle only on snow blower head
+
+
+class _YarboRawSensorBase(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
+    """Base for sensors reading directly from coordinator.data[sn]."""
+
+    _attr_has_entity_name = True
+    # Subclasses set to a tuple of allowed head_type ints; None means all heads.
+    _head_type_required: tuple[int, ...] | None = None
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.sn)},
+            name=self._device.name,
+            manufacturer="Yarbo",
+            model=self._device.model,
+            serial_number=self._device.sn,
+        )
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        if self._head_type_required is not None:
+            from yarbo_robot_sdk.device_helpers import extract_field
+
+            data = (self.coordinator.data or {}).get(self._device.sn) or {}
+            head_type = extract_field(data, "HeadMsg.head_type")
+            if head_type is not None:
+                return int(head_type) in self._head_type_required
+        return True
+
+    def _data(self) -> dict:
+        return (self.coordinator.data or {}).get(self._device.sn) or {}
+
+
+class YarboSpeedSensor(_YarboRawSensorBase):
+    """Average forward speed derived from wheel encoders."""
+
+    _attr_name = "Speed"
+    _attr_icon = "mdi:speedometer"
+    _attr_native_unit_of_measurement = "m/s"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_speed"
+
+    @property
+    def native_value(self) -> float | None:
+        ws = self._data().get("WheelSpeedMSG") or {}
+        left = ws.get("left")
+        right = ws.get("right")
+        if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
+            return None
+        return round((float(left) + float(right)) / 2.0, 3)
+
+
+class YarboOdometryLeftSensor(_YarboRawSensorBase):
+    """Left wheel odometry — cumulative distance since power-on."""
+
+    _attr_name = "Odometry Left"
+    _attr_icon = "mdi:counter"
+    _attr_native_unit_of_measurement = "m"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_odometry_left"
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("WheelSpeedMSG") or {}).get("dist_left")
+        return round(float(val), 1) if isinstance(val, (int, float)) else None
+
+
+class YarboOdometryRightSensor(_YarboRawSensorBase):
+    """Right wheel odometry — cumulative distance since power-on."""
+
+    _attr_name = "Odometry Right"
+    _attr_icon = "mdi:counter"
+    _attr_native_unit_of_measurement = "m"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_odometry_right"
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("WheelSpeedMSG") or {}).get("dist_right")
+        return round(float(val), 1) if isinstance(val, (int, float)) else None
+
+
+class YarboOdomConfidenceSensor(_YarboRawSensorBase):
+    """Fused odometry / positioning confidence (0–1)."""
+
+    _attr_name = "Positioning Confidence"
+    _attr_icon = "mdi:crosshairs"
+    _attr_native_unit_of_measurement = None
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_odom_confidence"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._data().get("combined_odom_confidence")
+        return round(float(val), 3) if isinstance(val, (int, float)) else None
+
+
+class YarboRainSensor(_YarboRawSensorBase):
+    """Rain sensor raw reading."""
+
+    _attr_name = "Rain Sensor"
+    _attr_icon = "mdi:weather-rainy"
+    _attr_native_unit_of_measurement = None
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_rain_sensor"
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("RunningStatusMSG") or {}).get("rain_sensor_data")
+        return float(val) if isinstance(val, (int, float)) else None
+
+
+class YarboChuteSensor(_YarboRawSensorBase):
+    """Snow chute angle — Snow Blower head only."""
+
+    _attr_name = "Chute Angle"
+    _attr_icon = "mdi:rotate-right"
+    _attr_native_unit_of_measurement = "°"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _head_type_required = _HEAD_SNOW_BLOWER
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_chute_angle"
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("RunningStatusMSG") or {}).get("chute_angle")
+        return float(val) if isinstance(val, (int, float)) else None
+
+
+class YarboProximityLeftSensor(_YarboRawSensorBase):
+    """Left front ultrasonic distance (9999 = no obstacle)."""
+
+    _attr_name = "Proximity Left"
+    _attr_icon = "mdi:radar"
+    _attr_native_unit_of_measurement = "mm"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_proximity_left"
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("ultrasonic_msg") or {}).get("lf_dis")
+        return float(val) if isinstance(val, (int, float)) else None
+
+
+class YarboProximityCenterSensor(_YarboRawSensorBase):
+    """Center ultrasonic distance (9999 = no obstacle)."""
+
+    _attr_name = "Proximity Center"
+    _attr_icon = "mdi:radar"
+    _attr_native_unit_of_measurement = "mm"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_proximity_center"
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("ultrasonic_msg") or {}).get("mt_dis")
+        return float(val) if isinstance(val, (int, float)) else None
+
+
+class YarboProximityRightSensor(_YarboRawSensorBase):
+    """Right front ultrasonic distance (9999 = no obstacle)."""
+
+    _attr_name = "Proximity Right"
+    _attr_icon = "mdi:radar"
+    _attr_native_unit_of_measurement = "mm"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_proximity_right"
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("ultrasonic_msg") or {}).get("rf_dis")
+        return float(val) if isinstance(val, (int, float)) else None
+
+
+class YarboGyroPitchSensor(_YarboRawSensorBase):
+    """Head attachment gyroscope pitch angle (diagnostic)."""
+
+    _attr_name = "Head Gyro Pitch"
+    _attr_icon = "mdi:axis-x-rotate-clockwise"
+    _attr_native_unit_of_measurement = "°"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_gyro_pitch"
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("RunningStatusMSG") or {}).get("head_gyro_pitch")
+        return round(float(val), 3) if isinstance(val, (int, float)) else None
+
+
+class YarboGyroRollSensor(_YarboRawSensorBase):
+    """Head attachment gyroscope roll angle (diagnostic)."""
+
+    _attr_name = "Head Gyro Roll"
+    _attr_icon = "mdi:axis-y-rotate-clockwise"
+    _attr_native_unit_of_measurement = "°"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_gyro_roll"
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("RunningStatusMSG") or {}).get("head_gyro_roll")
+        return round(float(val), 3) if isinstance(val, (int, float)) else None
 
 
 class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
