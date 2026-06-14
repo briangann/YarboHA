@@ -316,7 +316,7 @@ class _YarboOdometrySensor(_YarboRawSensorBase):
 
     _attr_icon = "mdi:counter"
     _attr_native_unit_of_measurement = "m"
-    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _mqtt_key: str = ""
 
     @property

@@ -259,16 +259,20 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     return
                 self._plan_feedback[_sn] = data
                 if self.data is not None:
-                    self.hass.loop.call_soon_threadsafe(
-                        self.async_set_updated_data, self.data
-                    )
+                    loop = self.hass.loop
+                    if not loop.is_closed():
+                        loop.call_soon_threadsafe(
+                            self.async_set_updated_data, self.data
+                        )
 
             try:
-                await self.hass.async_add_executor_job(
-                    client._ensure_mqtt_for(device.sn).subscribe,
-                    plan_topic,
-                    _on_plan_feedback,
-                )
+
+                def _subscribe_plan(
+                    _sn=device.sn, _t=plan_topic, _cb=_on_plan_feedback
+                ):
+                    client._ensure_mqtt_for(_sn).subscribe(_t, _cb)
+
+                await self.hass.async_add_executor_job(_subscribe_plan)
                 _LOGGER.info("plan_feedback subscribed for %s", device.sn)
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
@@ -297,16 +301,20 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     return
                 self._cloud_points[_sn] = data
                 if self.data is not None:
-                    self.hass.loop.call_soon_threadsafe(
-                        self.async_set_updated_data, self.data
-                    )
+                    loop = self.hass.loop
+                    if not loop.is_closed():
+                        loop.call_soon_threadsafe(
+                            self.async_set_updated_data, self.data
+                        )
 
             try:
-                await self.hass.async_add_executor_job(
-                    client._ensure_mqtt_for(device.sn).subscribe,
-                    cloud_topic,
-                    _on_cloud_points,
-                )
+
+                def _subscribe_cloud(
+                    _sn=device.sn, _t=cloud_topic, _cb=_on_cloud_points
+                ):
+                    client._ensure_mqtt_for(_sn).subscribe(_t, _cb)
+
+                await self.hass.async_add_executor_job(_subscribe_cloud)
                 _LOGGER.info("cloud_points subscribed for %s", device.sn)
             except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
@@ -393,9 +401,9 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             # the merge actually changed something; status pushes often repeat
             # identical fields, which would otherwise refresh entities ~constantly.
             if _deep_merge(self.data[sn], data):
-                self.hass.loop.call_soon_threadsafe(
-                    self.async_set_updated_data, self.data
-                )
+                loop = self.hass.loop
+                if not loop.is_closed():
+                    loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
 
     def _on_heart_beat(self, topic: str, data: dict[str, Any]) -> None:
         """Handle heart beat push — update timestamp and online state.
@@ -456,7 +464,9 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             # Logged only when the payload changed (the dedup above), so this
             # stays quiet in steady state despite the 1-2s heartbeat cadence.
             _LOGGER.debug("[heart_beat] sn=%s → online, payload=%s", sn, data)
-            self.hass.loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
+            loop = self.hass.loop
+            if not loop.is_closed():
+                loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
 
     def _schedule_refetch(self, sn, inflight, refresh, label) -> None:
         """Schedule a one-shot online-recovery re-fetch for a device.
