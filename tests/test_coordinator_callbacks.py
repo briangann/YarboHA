@@ -25,6 +25,7 @@ def _make_coordinator(device_data=None, devices=None):
     coord = YarboDataUpdateCoordinator.__new__(YarboDataUpdateCoordinator)
     coord.hass = MagicMock()
     coord.hass.loop = MagicMock()
+    coord.hass.loop.is_closed.return_value = False
     coord.entry = MagicMock()
     coord.entry.options = {}
     coord.logger = MagicMock()
