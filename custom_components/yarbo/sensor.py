@@ -11,9 +11,10 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from yarbo_robot_sdk.device_helpers import convert_local_to_gps, extract_field
 
@@ -155,6 +156,8 @@ async def async_setup_entry(
         entities.append(YarboSpeedSensor(coordinator, device))
         entities.append(YarboOdometryLeftSensor(coordinator, device))
         entities.append(YarboOdometryRightSensor(coordinator, device))
+        entities.append(YarboOdometryTotalLeftSensor(coordinator, device))
+        entities.append(YarboOdometryTotalRightSensor(coordinator, device))
         entities.append(YarboOdomConfidenceSensor(coordinator, device))
         entities.append(YarboChuteSensor(coordinator, device))  # Snow Blower head only
         entities.append(YarboProximityLeftSensor(coordinator, device))
@@ -348,6 +351,92 @@ class YarboOdometryRightSensor(_YarboOdometrySensor):
 
     _attr_name = "Odometry Right"
     _unique_id_suffix = "odometry_right"
+    _mqtt_key = "dist_right"
+
+
+class _YarboOdometryTotalSensor(
+    CoordinatorEntity[YarboDataUpdateCoordinator],
+    RestoreEntity,
+    SensorEntity,
+):
+    """Accumulates per-wheel odometry across power cycles and firmware resets.
+
+    Raw odometry resets to 0 each power-on. This sensor adds deltas to a
+    persistent total, skipping any frame where the raw value drops (reset
+    detected) so the accumulated value never decreases.
+    """
+
+    _attr_has_entity_name = True
+    _attr_native_unit_of_measurement = "m"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:counter"
+    _unique_id_suffix: str = ""
+    _mqtt_key: str = ""
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_{self._unique_id_suffix}"
+        self._accumulated: float = 0.0
+        self._last_raw: float | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.sn)},
+            name=self._device.name,
+            manufacturer="Yarbo",
+            model=self._device.model,
+            serial_number=self._device.sn,
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in (None, "unknown", "unavailable"):
+            try:
+                self._accumulated = float(last_state.state)
+            except ValueError:
+                pass
+        if last_state and last_state.attributes:
+            try:
+                self._last_raw = float(last_state.attributes["last_raw"])
+            except (KeyError, TypeError, ValueError):
+                pass
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        data = (self.coordinator.data or {}).get(self._device.sn) or {}
+        val = (data.get("WheelSpeedMSG") or {}).get(self._mqtt_key)
+        if isinstance(val, (int, float)):
+            raw = round(float(val), 1)
+            if self._last_raw is not None and raw >= self._last_raw:
+                self._accumulated = round(self._accumulated + (raw - self._last_raw), 1)
+            self._last_raw = raw
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> float | None:
+        return self._accumulated if self._last_raw is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"last_raw": self._last_raw}
+
+
+class YarboOdometryTotalLeftSensor(_YarboOdometryTotalSensor):
+    """Lifetime accumulated left wheel distance across power cycles."""
+
+    _attr_name = "Odometry Total Left"
+    _unique_id_suffix = "odometry_total_left"
+    _mqtt_key = "dist_left"
+
+
+class YarboOdometryTotalRightSensor(_YarboOdometryTotalSensor):
+    """Lifetime accumulated right wheel distance across power cycles."""
+
+    _attr_name = "Odometry Total Right"
+    _unique_id_suffix = "odometry_total_right"
     _mqtt_key = "dist_right"
 
 
