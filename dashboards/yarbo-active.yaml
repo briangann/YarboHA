@@ -30,9 +30,9 @@ views:
           - entity: sensor.<DEVICE_SN>_network
             name: Network
           - entity: binary_sensor.<DEVICE_SN>_rain_detected
-            name: Rain
+            name: Weather
           - entity: sensor.<DEVICE_SN>_rain_sensor
-            name: Rain Raw
+            name: Rain Sensor
 
       # ---- Row 2: Plan / Progress / Motion / Proximity (1 col each) -------
       - type: glance
