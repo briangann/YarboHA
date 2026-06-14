@@ -152,6 +152,93 @@ async def async_setup_entry(
         entities.append(YarboProximityRightSensor(coordinator, device))
         entities.append(YarboGyroPitchSensor(coordinator, device))
         entities.append(YarboGyroRollSensor(coordinator, device))
+
+        # Extended raw telemetry — from live MQTT key inventory 2026-06-14
+        entities.extend(
+            [
+                # Body chassis gyro (RunningStatusMSG)
+                YarboBodyGyroPitchSensor(coordinator, device),
+                YarboBodyGyroRollSensor(coordinator, device),
+                YarboBodyGyroYawSensor(coordinator, device),
+                YarboBodyAccXSensor(coordinator, device),
+                YarboBodyAccYSensor(coordinator, device),
+                YarboBodyAccZSensor(coordinator, device),
+                YarboBodyAngVelXSensor(coordinator, device),
+                YarboBodyAngVelYSensor(coordinator, device),
+                YarboBodyAngVelZSensor(coordinator, device),
+                # RunningStatusMSG misc
+                YarboImpactSensor(coordinator, device),
+                YarboPushPodStatusSensor(coordinator, device),
+                YarboPushRodPlaceSensor(coordinator, device),
+                # EletricMSG
+                YarboLeftWheelCurrentSensor(coordinator, device),
+                YarboRightWheelCurrentSensor(coordinator, device),
+                YarboBrushlessMotorCurrentSensor(coordinator, device),
+                YarboPushPodCurrentSensor(coordinator, device),
+                YarboChuteSteeringCurrentSensor(
+                    coordinator, device
+                ),  # snow blower only
+                YarboChuteCurrentSensor(coordinator, device),  # snow blower only
+                YarboMosTempSensor(coordinator, device),
+                YarboMotorNtcTempSensor(coordinator, device),
+                # Mower blade motors (mower heads only)
+                YarboMiddleBladeCurrentSensor(coordinator, device),
+                YarboMiddleBladeRpmSensor(coordinator, device),
+                YarboMiddleBladeSpeedSensor(coordinator, device),
+                YarboMiddleBladeTempSensor(coordinator, device),
+                YarboMiddleBladeTempStatusSensor(coordinator, device),
+                YarboMiddleBladeErrSensor(coordinator, device),
+                YarboMiddleBladeOverCurrentSensor(coordinator, device),
+                YarboLeftBladeCurrentSensor(coordinator, device),
+                YarboLeftBladeRpmSensor(coordinator, device),
+                YarboLeftBladeSpeedSensor(coordinator, device),
+                YarboLeftBladeTempSensor(coordinator, device),
+                YarboLeftBladeTempStatusSensor(coordinator, device),
+                YarboLeftBladeErrSensor(coordinator, device),
+                YarboLeftBladeOverCurrentSensor(coordinator, device),
+                YarboRightBladeCurrentSensor(coordinator, device),
+                YarboRightBladeRpmSensor(coordinator, device),
+                YarboRightBladeSpeedSensor(coordinator, device),
+                YarboRightBladeTempSensor(coordinator, device),
+                YarboRightBladeTempStatusSensor(coordinator, device),
+                YarboRightBladeErrSensor(coordinator, device),
+                YarboRightBladeOverCurrentSensor(coordinator, device),
+                YarboLiftMotorCurrentSensor(coordinator, device),
+                YarboLiftMotorPlaceSensor(coordinator, device),
+                YarboRaiseSensorSensor(coordinator, device),
+                # Onboard compute health (system_info)
+                YarboCpuTemperatureSensor(coordinator, device),
+                YarboCpuUsageSensor(coordinator, device),
+                YarboCpuFrequencySensor(coordinator, device),
+                YarboMemFreeSensor(coordinator, device),
+                YarboMemTotalSensor(coordinator, device),
+                YarboMemAvailableSensor(coordinator, device),
+                YarboDiskAvailableSensor(coordinator, device),
+                YarboDiskUsedSensor(coordinator, device),
+                # Wireless recharge
+                YarboWirelessChargeVoltageSensor(coordinator, device),
+                YarboWirelessChargeCurrentSensor(coordinator, device),
+                YarboWirelessChargeTempSensor(coordinator, device),
+                YarboWirelessChargeStateSensor(coordinator, device),
+                # RTKMSG extras
+                YarboRtkHeadingSensor(coordinator, device),
+                YarboRtkLatitudeSensor(coordinator, device),
+                YarboRtkLongitudeSensor(coordinator, device),
+                YarboRtkAltitudeSensor(coordinator, device),
+                # Hardware/firmware versions
+                YarboBodyHardwareVersionSensor(coordinator, device),
+                YarboHeadHardwareVersionSensor(coordinator, device),
+                YarboRadarHardwareVersionSensor(coordinator, device),
+                YarboChassisVersionSensor(coordinator, device),
+                YarboPackageVersionSensor(coordinator, device),
+                YarboBleVersionSensor(coordinator, device),
+                YarboBaseNameSensor(coordinator, device),
+                # Flat numeric
+                YarboBaseStatusSensor(coordinator, device),
+                YarboPositionDeviationSensor(coordinator, device),
+                YarboRtcmAgeSensor(coordinator, device),
+            ]
+        )
     async_add_entities(entities)
 
 
@@ -164,6 +251,7 @@ async def async_setup_entry(
 # ---------------------------------------------------------------------------
 
 _HEAD_SNOW_BLOWER: tuple[int, ...] = (1,)  # chute angle only on snow blower head
+_HEAD_MOWER: tuple[int, ...] = (3, 5)  # blade motor sensors — mower heads only
 
 
 class _YarboRawSensorBase(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
@@ -353,6 +441,765 @@ class YarboGyroRollSensor(_YarboGyroSensor):
     _attr_icon = "mdi:axis-y-rotate-clockwise"
     _unique_id_suffix = "gyro_roll"
     _mqtt_key = "head_gyro_roll"
+
+
+# ---------------------------------------------------------------------------
+# Extended raw telemetry — derived from live MQTT key inventory 2026-06-14
+# All sensors disabled by default except CPU temperature and CPU usage.
+# ---------------------------------------------------------------------------
+
+
+class _YarboRunningStatusSensor(_YarboRawSensorBase):
+    """Shared base for RunningStatusMSG scalar sensors."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+    _mqtt_key: str = ""
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("RunningStatusMSG") or {}).get(self._mqtt_key)
+        return round(float(val), 3) if isinstance(val, (int, float)) else None
+
+
+# Body chassis gyro (distinct from head gyro in _YarboGyroSensor)
+
+
+class YarboBodyGyroPitchSensor(_YarboRunningStatusSensor):
+    _attr_name = "Body Gyro Pitch"
+    _attr_icon = "mdi:axis-x-rotate-clockwise"
+    _attr_native_unit_of_measurement = "°"
+    _unique_id_suffix = "body_gyro_pitch"
+    _mqtt_key = "gyro_pitch"
+
+
+class YarboBodyGyroRollSensor(_YarboRunningStatusSensor):
+    _attr_name = "Body Gyro Roll"
+    _attr_icon = "mdi:axis-y-rotate-clockwise"
+    _attr_native_unit_of_measurement = "°"
+    _unique_id_suffix = "body_gyro_roll"
+    _mqtt_key = "gyro_roll"
+
+
+class YarboBodyGyroYawSensor(_YarboRunningStatusSensor):
+    _attr_name = "Body Gyro Yaw"
+    _attr_icon = "mdi:axis-z-rotate-clockwise"
+    _attr_native_unit_of_measurement = "°"
+    _unique_id_suffix = "body_gyro_yaw"
+    _mqtt_key = "gyro_yaw"
+
+
+class YarboBodyAccXSensor(_YarboRunningStatusSensor):
+    _attr_name = "Body Acceleration X"
+    _attr_icon = "mdi:axis-x-arrow"
+    _attr_native_unit_of_measurement = "m/s²"
+    _unique_id_suffix = "body_acc_x"
+    _mqtt_key = "gyro_acc_x"
+
+
+class YarboBodyAccYSensor(_YarboRunningStatusSensor):
+    _attr_name = "Body Acceleration Y"
+    _attr_icon = "mdi:axis-y-arrow"
+    _attr_native_unit_of_measurement = "m/s²"
+    _unique_id_suffix = "body_acc_y"
+    _mqtt_key = "gyro_acc_y"
+
+
+class YarboBodyAccZSensor(_YarboRunningStatusSensor):
+    _attr_name = "Body Acceleration Z"
+    _attr_icon = "mdi:axis-z-arrow"
+    _attr_native_unit_of_measurement = "m/s²"
+    _unique_id_suffix = "body_acc_z"
+    _mqtt_key = "gyro_acc_z"
+
+
+class YarboBodyAngVelXSensor(_YarboRunningStatusSensor):
+    _attr_name = "Body Angular Velocity X"
+    _attr_icon = "mdi:rotate-3d-variant"
+    _attr_native_unit_of_measurement = "rad/s"
+    _unique_id_suffix = "body_ang_vel_x"
+    _mqtt_key = "gyro_ang_vel_x"
+
+
+class YarboBodyAngVelYSensor(_YarboRunningStatusSensor):
+    _attr_name = "Body Angular Velocity Y"
+    _attr_icon = "mdi:rotate-3d-variant"
+    _attr_native_unit_of_measurement = "rad/s"
+    _unique_id_suffix = "body_ang_vel_y"
+    _mqtt_key = "gyro_ang_vel_y"
+
+
+class YarboBodyAngVelZSensor(_YarboRunningStatusSensor):
+    _attr_name = "Body Angular Velocity Z"
+    _attr_icon = "mdi:rotate-3d-variant"
+    _attr_native_unit_of_measurement = "rad/s"
+    _unique_id_suffix = "body_ang_vel_z"
+    _mqtt_key = "gyro_ang_vel_z"
+
+
+# RunningStatusMSG misc
+
+
+class YarboImpactSensor(_YarboRunningStatusSensor):
+    _attr_name = "Impact Sensor"
+    _attr_icon = "mdi:car-brake-alert"
+    _unique_id_suffix = "impact_sensor"
+    _mqtt_key = "impact_sensor"
+
+
+class YarboPushPodStatusSensor(_YarboRunningStatusSensor):
+    _attr_name = "Push Pod Status"
+    _attr_icon = "mdi:piston"
+    _unique_id_suffix = "push_pod_status"
+    _mqtt_key = "push_pod_status"
+
+
+class YarboPushRodPlaceSensor(_YarboRunningStatusSensor):
+    _attr_name = "Push Rod Place"
+    _attr_icon = "mdi:wrench"
+    _unique_id_suffix = "push_rod_place"
+    _mqtt_key = "push_rod_place"
+
+
+# ---------------------------------------------------------------------------
+# EletricMSG sensors
+# ---------------------------------------------------------------------------
+
+
+class _YarboElectricSensor(_YarboRawSensorBase):
+    """Shared base for EletricMSG scalar sensors."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+    _mqtt_key: str = ""
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("EletricMSG") or {}).get(self._mqtt_key)
+        return round(float(val), 3) if isinstance(val, (int, float)) else None
+
+
+class YarboLeftWheelCurrentSensor(_YarboElectricSensor):
+    _attr_name = "Left Wheel Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _unique_id_suffix = "left_wheel_current"
+    _mqtt_key = "lwheel_current"
+
+
+class YarboRightWheelCurrentSensor(_YarboElectricSensor):
+    _attr_name = "Right Wheel Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _unique_id_suffix = "right_wheel_current"
+    _mqtt_key = "rwheel_current"
+
+
+class YarboBrushlessMotorCurrentSensor(_YarboElectricSensor):
+    _attr_name = "Brushless Motor Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _unique_id_suffix = "brushless_motor_current"
+    _mqtt_key = "brushless_motor_current"
+
+
+class YarboPushPodCurrentSensor(_YarboElectricSensor):
+    _attr_name = "Push Pod Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _unique_id_suffix = "push_pod_current"
+    _mqtt_key = "push_pod_current"
+
+
+class YarboChuteSteeringCurrentSensor(_YarboElectricSensor):
+    _attr_name = "Chute Steering Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _head_type_required = _HEAD_SNOW_BLOWER
+    _unique_id_suffix = "chute_steering_current"
+    _mqtt_key = "chute_streeing_engine_current"  # firmware typo preserved
+
+
+class YarboChuteCurrentSensor(_YarboElectricSensor):
+    _attr_name = "Chute Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _head_type_required = _HEAD_SNOW_BLOWER
+    _unique_id_suffix = "chute_current"
+    _mqtt_key = "current_chute"
+
+
+class YarboMosTempSensor(_YarboElectricSensor):
+    _attr_name = "MOS Temperature"
+    _attr_icon = "mdi:thermometer"
+    _attr_native_unit_of_measurement = "°C"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _unique_id_suffix = "mos_temp"
+    _mqtt_key = "mos_temp"
+
+
+class YarboMotorNtcTempSensor(_YarboElectricSensor):
+    _attr_name = "Motor NTC Temperature"
+    _attr_icon = "mdi:thermometer"
+    _attr_native_unit_of_measurement = "°C"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _unique_id_suffix = "motor_ntc_temp"
+    _mqtt_key = "ntc_temperature"
+
+
+# ---------------------------------------------------------------------------
+# Mower blade motor sensors (head_info02/03/04 + head_info01 lift extras)
+# ---------------------------------------------------------------------------
+
+
+class _YarboMowerBladeSensor(_YarboRawSensorBase):
+    """Shared base for mower blade motor sensors — mower heads only."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+    _head_type_required = _HEAD_MOWER
+    _msg_key: str = ""
+    _mqtt_key: str = ""
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
+        return round(float(val), 3) if isinstance(val, (int, float)) else None
+
+
+# Middle blade (mower_head_info02)
+
+
+class YarboMiddleBladeCurrentSensor(_YarboMowerBladeSensor):
+    _attr_name = "Middle Blade Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _unique_id_suffix = "middle_blade_current"
+    _msg_key = "mower_head_info02"
+    _mqtt_key = "middle_blade_motor_current"
+
+
+class YarboMiddleBladeRpmSensor(_YarboMowerBladeSensor):
+    _attr_name = "Middle Blade RPM"
+    _attr_icon = "mdi:fan"
+    _attr_native_unit_of_measurement = "rpm"
+    _unique_id_suffix = "middle_blade_rpm"
+    _msg_key = "mower_head_info02"
+    _mqtt_key = "middle_blade_motor_rpm"
+
+
+class YarboMiddleBladeSpeedSensor(_YarboMowerBladeSensor):
+    _attr_name = "Middle Blade Speed"
+    _attr_icon = "mdi:speedometer"
+    _attr_native_unit_of_measurement = "%"
+    _unique_id_suffix = "middle_blade_speed"
+    _msg_key = "mower_head_info02"
+    _mqtt_key = "middle_blade_motor_speed"
+
+
+class YarboMiddleBladeTempSensor(_YarboMowerBladeSensor):
+    _attr_name = "Middle Blade Temperature"
+    _attr_icon = "mdi:thermometer"
+    _attr_native_unit_of_measurement = "°C"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _unique_id_suffix = "middle_blade_temp"
+    _msg_key = "mower_head_info02"
+    _mqtt_key = "middle_blade_motor_temp"
+
+
+class YarboMiddleBladeTempStatusSensor(_YarboMowerBladeSensor):
+    _attr_name = "Middle Blade Temp Status"
+    _attr_icon = "mdi:thermometer-alert"
+    _unique_id_suffix = "middle_blade_temp_status"
+    _msg_key = "mower_head_info02"
+    _mqtt_key = "middle_blade_motor_temp_status"
+
+
+class YarboMiddleBladeErrSensor(_YarboMowerBladeSensor):
+    _attr_name = "Middle Blade Error"
+    _attr_icon = "mdi:alert-circle"
+    _unique_id_suffix = "middle_blade_err"
+    _msg_key = "mower_head_info02"
+    _mqtt_key = "middle_blade_motor_err"
+
+
+class YarboMiddleBladeOverCurrentSensor(_YarboMowerBladeSensor):
+    _attr_name = "Middle Blade Overcurrent"
+    _attr_icon = "mdi:current-ac"
+    _unique_id_suffix = "middle_blade_overcurrent"
+    _msg_key = "mower_head_info02"
+    _mqtt_key = "middle_blade_motor_over_current_info"
+
+
+# Left blade (mower_head_info03)
+
+
+class YarboLeftBladeCurrentSensor(_YarboMowerBladeSensor):
+    _attr_name = "Left Blade Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _unique_id_suffix = "left_blade_current"
+    _msg_key = "mower_head_info03"
+    _mqtt_key = "left_blade_motor_current"
+
+
+class YarboLeftBladeRpmSensor(_YarboMowerBladeSensor):
+    _attr_name = "Left Blade RPM"
+    _attr_icon = "mdi:fan"
+    _attr_native_unit_of_measurement = "rpm"
+    _unique_id_suffix = "left_blade_rpm"
+    _msg_key = "mower_head_info03"
+    _mqtt_key = "left_blade_motor_rpm"
+
+
+class YarboLeftBladeSpeedSensor(_YarboMowerBladeSensor):
+    _attr_name = "Left Blade Speed"
+    _attr_icon = "mdi:speedometer"
+    _attr_native_unit_of_measurement = "%"
+    _unique_id_suffix = "left_blade_speed"
+    _msg_key = "mower_head_info03"
+    _mqtt_key = "left_blade_motor_speed"
+
+
+class YarboLeftBladeTempSensor(_YarboMowerBladeSensor):
+    _attr_name = "Left Blade Temperature"
+    _attr_icon = "mdi:thermometer"
+    _attr_native_unit_of_measurement = "°C"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _unique_id_suffix = "left_blade_temp"
+    _msg_key = "mower_head_info03"
+    _mqtt_key = "left_blade_motor_temp"
+
+
+class YarboLeftBladeTempStatusSensor(_YarboMowerBladeSensor):
+    _attr_name = "Left Blade Temp Status"
+    _attr_icon = "mdi:thermometer-alert"
+    _unique_id_suffix = "left_blade_temp_status"
+    _msg_key = "mower_head_info03"
+    _mqtt_key = "left_blade_motor_temp_status"
+
+
+class YarboLeftBladeErrSensor(_YarboMowerBladeSensor):
+    _attr_name = "Left Blade Error"
+    _attr_icon = "mdi:alert-circle"
+    _unique_id_suffix = "left_blade_err"
+    _msg_key = "mower_head_info03"
+    _mqtt_key = "left_blade_motor_err"
+
+
+class YarboLeftBladeOverCurrentSensor(_YarboMowerBladeSensor):
+    _attr_name = "Left Blade Overcurrent"
+    _attr_icon = "mdi:current-ac"
+    _unique_id_suffix = "left_blade_overcurrent"
+    _msg_key = "mower_head_info03"
+    _mqtt_key = "left_blade_motor_over_current_info"
+
+
+# Right blade (mower_head_info04)
+
+
+class YarboRightBladeCurrentSensor(_YarboMowerBladeSensor):
+    _attr_name = "Right Blade Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _unique_id_suffix = "right_blade_current"
+    _msg_key = "mower_head_info04"
+    _mqtt_key = "right_blade_motor_current"
+
+
+class YarboRightBladeRpmSensor(_YarboMowerBladeSensor):
+    _attr_name = "Right Blade RPM"
+    _attr_icon = "mdi:fan"
+    _attr_native_unit_of_measurement = "rpm"
+    _unique_id_suffix = "right_blade_rpm"
+    _msg_key = "mower_head_info04"
+    _mqtt_key = "right_blade_motor_rpm"
+
+
+class YarboRightBladeSpeedSensor(_YarboMowerBladeSensor):
+    _attr_name = "Right Blade Speed"
+    _attr_icon = "mdi:speedometer"
+    _attr_native_unit_of_measurement = "%"
+    _unique_id_suffix = "right_blade_speed"
+    _msg_key = "mower_head_info04"
+    _mqtt_key = "right_blade_motor_speed"
+
+
+class YarboRightBladeTempSensor(_YarboMowerBladeSensor):
+    _attr_name = "Right Blade Temperature"
+    _attr_icon = "mdi:thermometer"
+    _attr_native_unit_of_measurement = "°C"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _unique_id_suffix = "right_blade_temp"
+    _msg_key = "mower_head_info04"
+    _mqtt_key = "right_blade_motor_temp"
+
+
+class YarboRightBladeTempStatusSensor(_YarboMowerBladeSensor):
+    _attr_name = "Right Blade Temp Status"
+    _attr_icon = "mdi:thermometer-alert"
+    _unique_id_suffix = "right_blade_temp_status"
+    _msg_key = "mower_head_info04"
+    _mqtt_key = "right_blade_motor_temp_status"
+
+
+class YarboRightBladeErrSensor(_YarboMowerBladeSensor):
+    _attr_name = "Right Blade Error"
+    _attr_icon = "mdi:alert-circle"
+    _unique_id_suffix = "right_blade_err"
+    _msg_key = "mower_head_info04"
+    _mqtt_key = "right_blade_motor_err"
+
+
+class YarboRightBladeOverCurrentSensor(_YarboMowerBladeSensor):
+    _attr_name = "Right Blade Overcurrent"
+    _attr_icon = "mdi:current-ac"
+    _unique_id_suffix = "right_blade_overcurrent"
+    _msg_key = "mower_head_info04"
+    _mqtt_key = "right_blade_motor_over_current_info"
+
+
+# Lift motor (mower_head_info01 extras — already has rain_sensor via SDK)
+
+
+class YarboLiftMotorCurrentSensor(_YarboMowerBladeSensor):
+    _attr_name = "Lift Motor Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _unique_id_suffix = "lift_motor_current"
+    _msg_key = "mower_head_info01"
+    _mqtt_key = "lift_motor_current"
+
+
+class YarboLiftMotorPlaceSensor(_YarboMowerBladeSensor):
+    _attr_name = "Lift Motor Place"
+    _attr_icon = "mdi:arrow-up-down"
+    _unique_id_suffix = "lift_motor_place"
+    _msg_key = "mower_head_info01"
+    _mqtt_key = "lift_motor_place"
+
+
+class YarboRaiseSensorSensor(_YarboMowerBladeSensor):
+    _attr_name = "Raise Sensor"
+    _attr_icon = "mdi:arrow-up-bold"
+    _unique_id_suffix = "raise_sensor"
+    _msg_key = "mower_head_info01"
+    _mqtt_key = "raise_sensor"
+
+
+# ---------------------------------------------------------------------------
+# system_info sensors (CPU / memory / disk health)
+# ---------------------------------------------------------------------------
+
+
+class _YarboSystemInfoSensor(_YarboRawSensorBase):
+    """Shared base for system_info sensors. Keys may contain literal dots."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+    _mqtt_key: str = ""
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("system_info") or {}).get(self._mqtt_key)
+        return round(float(val), 1) if isinstance(val, (int, float)) else None
+
+
+class YarboCpuTemperatureSensor(_YarboSystemInfoSensor):
+    _attr_name = "CPU Temperature"
+    _attr_icon = "mdi:thermometer"
+    _attr_native_unit_of_measurement = "°C"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_entity_registry_enabled_default = True
+    _unique_id_suffix = "cpu_temperature"
+    _mqtt_key = "cpu.Temperature"
+
+
+class YarboCpuUsageSensor(_YarboSystemInfoSensor):
+    _attr_name = "CPU Usage"
+    _attr_icon = "mdi:chip"
+    _attr_native_unit_of_measurement = "%"
+    _attr_entity_registry_enabled_default = True
+    _unique_id_suffix = "cpu_usage"
+    _mqtt_key = "cpu.Usage"
+
+
+class YarboCpuFrequencySensor(_YarboSystemInfoSensor):
+    _attr_name = "CPU Frequency"
+    _attr_icon = "mdi:sine-wave"
+    _attr_native_unit_of_measurement = "MHz"
+    _unique_id_suffix = "cpu_frequency"
+    _mqtt_key = "cpu.Frequency"
+
+
+class YarboMemFreeSensor(_YarboSystemInfoSensor):
+    _attr_name = "Memory Free"
+    _attr_icon = "mdi:memory"
+    _attr_native_unit_of_measurement = "kB"
+    _unique_id_suffix = "mem_free"
+    _mqtt_key = "mem.MemFree"
+
+
+class YarboMemTotalSensor(_YarboSystemInfoSensor):
+    _attr_name = "Memory Total"
+    _attr_icon = "mdi:memory"
+    _attr_native_unit_of_measurement = "kB"
+    _unique_id_suffix = "mem_total"
+    _mqtt_key = "mem.MemTotal"
+
+
+class YarboMemAvailableSensor(_YarboSystemInfoSensor):
+    _attr_name = "Memory Available"
+    _attr_icon = "mdi:memory"
+    _attr_native_unit_of_measurement = "kB"
+    _unique_id_suffix = "mem_available"
+    _mqtt_key = "mem.MemAvailable"
+
+
+class YarboDiskAvailableSensor(_YarboSystemInfoSensor):
+    _attr_name = "Disk Available"
+    _attr_icon = "mdi:harddisk"
+    _attr_native_unit_of_measurement = "B"
+    _unique_id_suffix = "disk_available"
+    _mqtt_key = "userdata.disk.availableSize"
+
+
+class YarboDiskUsedSensor(_YarboSystemInfoSensor):
+    _attr_name = "Disk Used"
+    _attr_icon = "mdi:harddisk"
+    _attr_native_unit_of_measurement = "B"
+    _unique_id_suffix = "disk_used"
+    _mqtt_key = "userdata.disk.usedSize"
+
+
+# ---------------------------------------------------------------------------
+# Wireless recharge sensors
+# ---------------------------------------------------------------------------
+
+
+class _YarboWirelessRechargeSensor(_YarboRawSensorBase):
+    """Shared base for wireless_recharge sensors."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+    _mqtt_key: str = ""
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("wireless_recharge") or {}).get(self._mqtt_key)
+        return round(float(val), 3) if isinstance(val, (int, float)) else None
+
+
+class YarboWirelessChargeVoltageSensor(_YarboWirelessRechargeSensor):
+    _attr_name = "Wireless Charge Voltage"
+    _attr_icon = "mdi:flash"
+    _attr_native_unit_of_measurement = "V"
+    _attr_device_class = SensorDeviceClass.VOLTAGE
+    _unique_id_suffix = "wireless_charge_voltage"
+    _mqtt_key = "output_voltage"
+
+
+class YarboWirelessChargeCurrentSensor(_YarboWirelessRechargeSensor):
+    _attr_name = "Wireless Charge Current"
+    _attr_icon = "mdi:current-dc"
+    _attr_native_unit_of_measurement = "A"
+    _attr_device_class = SensorDeviceClass.CURRENT
+    _unique_id_suffix = "wireless_charge_current"
+    _mqtt_key = "output_current"
+
+
+class YarboWirelessChargeTempSensor(_YarboWirelessRechargeSensor):
+    _attr_name = "Wireless Charge Temperature"
+    _attr_icon = "mdi:thermometer"
+    _attr_native_unit_of_measurement = "°C"
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _unique_id_suffix = "wireless_charge_temp"
+    _mqtt_key = "temperature"
+
+
+class YarboWirelessChargeStateSensor(_YarboWirelessRechargeSensor):
+    _attr_name = "Wireless Charge State"
+    _attr_icon = "mdi:battery-charging-wireless"
+    _unique_id_suffix = "wireless_charge_state"
+    _mqtt_key = "state"
+
+
+# ---------------------------------------------------------------------------
+# RTKMSG extra sensors (beyond status + sat_num covered by SDK)
+# ---------------------------------------------------------------------------
+
+
+class _YarboRTKSensor(_YarboRawSensorBase):
+    """Shared base for RTKMSG scalar sensors."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+    _mqtt_key: str = ""
+
+    @property
+    def native_value(self) -> float | None:
+        val = (self._data().get("RTKMSG") or {}).get(self._mqtt_key)
+        return round(float(val), 6) if isinstance(val, (int, float)) else None
+
+
+class YarboRtkHeadingSensor(_YarboRTKSensor):
+    _attr_name = "RTK Heading"
+    _attr_icon = "mdi:compass-rose"
+    _attr_native_unit_of_measurement = "°"
+    _unique_id_suffix = "rtk_heading"
+    _mqtt_key = "heading"
+
+
+class YarboRtkLatitudeSensor(_YarboRTKSensor):
+    _attr_name = "RTK Latitude"
+    _attr_icon = "mdi:latitude"
+    _attr_native_unit_of_measurement = "°"
+    _unique_id_suffix = "rtk_latitude"
+    _mqtt_key = "lan"  # firmware key name (typo for "lat")
+
+
+class YarboRtkLongitudeSensor(_YarboRTKSensor):
+    _attr_name = "RTK Longitude"
+    _attr_icon = "mdi:longitude"
+    _attr_native_unit_of_measurement = "°"
+    _unique_id_suffix = "rtk_longitude"
+    _mqtt_key = "lon"
+
+
+class YarboRtkAltitudeSensor(_YarboRTKSensor):
+    _attr_name = "RTK Altitude"
+    _attr_icon = "mdi:elevation-rise"
+    _attr_native_unit_of_measurement = "m"
+    _unique_id_suffix = "rtk_altitude"
+    _mqtt_key = "hgt"
+
+
+# ---------------------------------------------------------------------------
+# Hardware/firmware version string sensors
+# ---------------------------------------------------------------------------
+
+
+class _YarboStringKeySensor(_YarboRawSensorBase):
+    """Shared base for string-valued sensors."""
+
+    _attr_entity_registry_enabled_default = False
+    _msg_key: str = ""
+    _mqtt_key: str = ""
+
+    @property
+    def native_value(self) -> str | None:
+        if self._msg_key:
+            val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
+        else:
+            val = self._data().get(self._mqtt_key)
+        return str(val) if val is not None else None
+
+
+class YarboBodyHardwareVersionSensor(_YarboStringKeySensor):
+    _attr_name = "Body Hardware Version"
+    _attr_icon = "mdi:chip"
+    _unique_id_suffix = "body_hardware_version"
+    _msg_key = "hardware_version"
+    _mqtt_key = "body_version"
+
+
+class YarboHeadHardwareVersionSensor(_YarboStringKeySensor):
+    _attr_name = "Head Hardware Version"
+    _attr_icon = "mdi:chip"
+    _unique_id_suffix = "head_hardware_version"
+    _msg_key = "hardware_version"
+    _mqtt_key = "head_version"
+
+
+class YarboRadarHardwareVersionSensor(_YarboStringKeySensor):
+    _attr_name = "Radar Hardware Version"
+    _attr_icon = "mdi:chip"
+    _unique_id_suffix = "radar_hardware_version"
+    _msg_key = "hardware_version"
+    _mqtt_key = "radar_version"
+
+
+class YarboChassisVersionSensor(_YarboStringKeySensor):
+    _attr_name = "Chassis Firmware Version"
+    _attr_icon = "mdi:chip"
+    _unique_id_suffix = "chassis_version"
+    _msg_key = "chassis_version_msg"
+    _mqtt_key = "firmware_version"
+
+
+class YarboPackageVersionSensor(_YarboStringKeySensor):
+    _attr_name = "Firmware Package Version"
+    _attr_icon = "mdi:tag"
+    _unique_id_suffix = "firmware_package_version"
+    _msg_key = ""
+    _mqtt_key = "version"
+
+
+class YarboBleVersionSensor(_YarboStringKeySensor):
+    _attr_name = "BLE Version"
+    _attr_icon = "mdi:bluetooth"
+    _unique_id_suffix = "ble_version"
+    _msg_key = ""
+    _mqtt_key = "ble_version"
+
+
+class YarboBaseNameSensor(_YarboStringKeySensor):
+    _attr_name = "Base Station Name"
+    _attr_icon = "mdi:home-map-marker"
+    _unique_id_suffix = "base_name"
+    _msg_key = ""
+    _mqtt_key = "base_name"
+
+
+# ---------------------------------------------------------------------------
+# Flat top-level numeric sensors
+# ---------------------------------------------------------------------------
+
+
+class _YarboFlatNumericSensor(_YarboRawSensorBase):
+    """Shared base for flat top-level numeric sensors."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_registry_enabled_default = False
+    _mqtt_key: str = ""
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._data().get(self._mqtt_key)
+        return round(float(val), 3) if isinstance(val, (int, float)) else None
+
+
+class YarboBaseStatusSensor(_YarboFlatNumericSensor):
+    _attr_name = "Base Station Status"
+    _attr_icon = "mdi:home-map-marker"
+    _unique_id_suffix = "base_status"
+    _mqtt_key = "base_status"
+
+
+class YarboPositionDeviationSensor(_YarboFlatNumericSensor):
+    _attr_name = "Position Deviation"
+    _attr_icon = "mdi:map-marker-distance"
+    _attr_native_unit_of_measurement = "m"
+    _unique_id_suffix = "position_deviation"
+    _mqtt_key = "pos_devia_dis"
+
+
+class YarboRtcmAgeSensor(_YarboFlatNumericSensor):
+    _attr_name = "RTCM Correction Age"
+    _attr_icon = "mdi:satellite-uplink"
+    _attr_native_unit_of_measurement = "s"
+    _unique_id_suffix = "rtcm_age"
+    _mqtt_key = "rtcm_age"
 
 
 class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
