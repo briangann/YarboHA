@@ -123,9 +123,9 @@ views:
           grid-column: span 2
         entities:
           - entity: sensor.<DEVICE_SN>_left_wheel_current
-            name: L Wheel A
+            name: L Track Power
           - entity: sensor.<DEVICE_SN>_right_wheel_current
-            name: R Wheel A
+            name: R Track Power
           - entity: sensor.<DEVICE_SN>_brushless_motor_current
             name: Brushless A
 
