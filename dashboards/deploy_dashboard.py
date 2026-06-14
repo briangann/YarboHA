@@ -16,6 +16,7 @@ import asyncio
 import json
 import pathlib
 import sys
+import yaml
 
 try:
     import websockets
@@ -52,7 +53,8 @@ async def deploy(ha_url: str, token: str, dashboard: str, sn: str) -> None:
         )
         sys.exit(1)
 
-    yaml_config = template.read_text().replace("<DEVICE_SN>", sn.lower())
+    yaml_str = template.read_text().replace("<DEVICE_SN>", sn.lower())
+    yaml_config = yaml.safe_load(yaml_str)
 
     ws_url = (
         ha_url.replace("http://", "ws://").replace("https://", "wss://")
@@ -93,7 +95,7 @@ async def deploy(ha_url: str, token: str, dashboard: str, sn: str) -> None:
         else:
             # Create dashboard then save config
             print(f"Creating dashboard '{url_path}'...")
-            title = yaml_config.split("\n")[0].replace("title:", "").strip()
+            title = yaml_config.get("title", dashboard)
             await _ws_send(
                 ws,
                 msg_id,
