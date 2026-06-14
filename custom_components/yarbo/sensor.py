@@ -333,7 +333,9 @@ class YarboProximityLeftSensor(_YarboRawSensorBase):
     @property
     def native_value(self) -> float | None:
         val = (self._data().get("ultrasonic_msg") or {}).get("lf_dis")
-        return float(val) if isinstance(val, (int, float)) else None
+        if not isinstance(val, (int, float)) or val >= 9999:
+            return None
+        return float(val)
 
 
 class YarboProximityCenterSensor(_YarboRawSensorBase):
@@ -351,7 +353,9 @@ class YarboProximityCenterSensor(_YarboRawSensorBase):
     @property
     def native_value(self) -> float | None:
         val = (self._data().get("ultrasonic_msg") or {}).get("mt_dis")
-        return float(val) if isinstance(val, (int, float)) else None
+        if not isinstance(val, (int, float)) or val >= 9999:
+            return None
+        return float(val)
 
 
 class YarboProximityRightSensor(_YarboRawSensorBase):
@@ -369,7 +373,9 @@ class YarboProximityRightSensor(_YarboRawSensorBase):
     @property
     def native_value(self) -> float | None:
         val = (self._data().get("ultrasonic_msg") or {}).get("rf_dis")
-        return float(val) if isinstance(val, (int, float)) else None
+        if not isinstance(val, (int, float)) or val >= 9999:
+            return None
+        return float(val)
 
 
 class YarboGyroPitchSensor(_YarboRawSensorBase):
