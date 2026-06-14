@@ -128,6 +128,10 @@ views:
             name: R Track Power
           - entity: sensor.<DEVICE_SN>_brushless_motor_current
             name: Brushless A
+          - entity: sensor.<DEVICE_SN>_odometry_left
+            name: L Dist
+          - entity: sensor.<DEVICE_SN>_odometry_right
+            name: R Dist
 
       # Note: blade sensors are disabled by default.
       # Enable in Settings → Devices → Yarbo → your device → entities.
