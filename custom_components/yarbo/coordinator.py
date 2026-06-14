@@ -261,9 +261,12 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 if self.data is not None:
                     loop = self.hass.loop
                     if not loop.is_closed():
-                        loop.call_soon_threadsafe(
-                            self.async_set_updated_data, self.data
-                        )
+                        try:
+                            loop.call_soon_threadsafe(
+                                self.async_set_updated_data, self.data
+                            )
+                        except RuntimeError:
+                            pass  # loop closed between check and call during shutdown
 
             try:
 
@@ -303,9 +306,12 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 if self.data is not None:
                     loop = self.hass.loop
                     if not loop.is_closed():
-                        loop.call_soon_threadsafe(
-                            self.async_set_updated_data, self.data
-                        )
+                        try:
+                            loop.call_soon_threadsafe(
+                                self.async_set_updated_data, self.data
+                            )
+                        except RuntimeError:
+                            pass  # loop closed between check and call during shutdown
 
             try:
 
@@ -466,7 +472,10 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             _LOGGER.debug("[heart_beat] sn=%s → online, payload=%s", sn, data)
             loop = self.hass.loop
             if not loop.is_closed():
-                loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
+                try:
+                    loop.call_soon_threadsafe(self.async_set_updated_data, self.data)
+                except RuntimeError:
+                    pass  # loop closed between check and call during shutdown
 
     def _schedule_refetch(self, sn, inflight, refresh, label) -> None:
         """Schedule a one-shot online-recovery re-fetch for a device.
