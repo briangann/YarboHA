@@ -111,3 +111,22 @@ views:
             name: L Temp
           - entity: sensor.<DEVICE_SN>_right_blade_temperature
             name: R Temp
+
+      # ---- Row 4: Battery cell temperatures (all 6) ----------------------
+      - type: glance
+        title: Battery Cells
+        view_layout:
+          grid-column: 1 / -1
+        entities:
+          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_1
+            name: Cell 1
+          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_2
+            name: Cell 2
+          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_3
+            name: Cell 3
+          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_4
+            name: Cell 4
+          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_5
+            name: Cell 5
+          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_6
+            name: Cell 6
