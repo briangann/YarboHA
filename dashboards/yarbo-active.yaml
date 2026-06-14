@@ -54,6 +54,8 @@ views:
             name: Elapsed
           - entity: sensor.<DEVICE_SN>_estimated_time_remaining
             name: Remaining
+          - entity: sensor.<DEVICE_SN>_plan_battery_consumption
+            name: Batt Used
 
       - type: glance
         title: Motion
@@ -85,8 +87,6 @@ views:
             name: Level
           - entity: sensor.<DEVICE_SN>_battery_health
             name: Health
-          - entity: sensor.<DEVICE_SN>_plan_battery_consumption
-            name: Consumed
           - entity: sensor.<DEVICE_SN>_charging_power
             name: Charge
 
