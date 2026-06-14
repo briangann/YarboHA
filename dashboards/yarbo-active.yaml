@@ -29,6 +29,10 @@ views:
             name: Online
           - entity: sensor.<DEVICE_SN>_network
             name: Network
+          - entity: binary_sensor.<DEVICE_SN>_rain_detected
+            name: Rain
+          - entity: sensor.<DEVICE_SN>_rain_sensor
+            name: Rain Raw
 
       # ---- Row 2: Plan / Progress / Motion / Proximity (1 col each) -------
       - type: glance
@@ -73,11 +77,9 @@ views:
           - entity: binary_sensor.<DEVICE_SN>_obstacle_detected
             name: Obstacle
 
-      # ---- Row 3: Battery (span 2) + Blades (span 2) ----------------------
+      # ---- Row 3: Battery (span 2) + Battery Cells (span 2) --------------
       - type: glance
         title: Battery
-        view_layout:
-          grid-column: span 2
         entities:
           - entity: sensor.<DEVICE_SN>_battery
             name: Level
@@ -87,46 +89,64 @@ views:
             name: Consumed
           - entity: sensor.<DEVICE_SN>_charging_power
             name: Charge
+
+      - type: grid
+        title: Battery Cells
+        columns: 6
+        square: false
+        view_layout:
+          grid-column: span 3
+        cards:
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_1
+            name: Cell 1
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_2
+            name: Cell 2
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_3
+            name: Cell 3
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_4
+            name: Cell 4
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_5
+            name: Cell 5
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_6
+            name: Cell 6
+
+      # ---- Row 4: Drive (span 2) + Left Blade (span 1) + Right Blade (span 1) ---
+      - type: glance
+        title: Drive
+        view_layout:
+          grid-column: span 2
+        entities:
           - entity: sensor.<DEVICE_SN>_left_wheel_current
             name: L Wheel A
           - entity: sensor.<DEVICE_SN>_right_wheel_current
             name: R Wheel A
+          - entity: sensor.<DEVICE_SN>_brushless_motor_current
+            name: Brushless A
 
       # Note: blade sensors are disabled by default.
       # Enable in Settings → Devices → Yarbo → your device → entities.
       - type: glance
-        title: Blades
-        view_layout:
-          grid-column: span 2
+        title: Left Blade
         entities:
           - entity: sensor.<DEVICE_SN>_left_blade_speed
-            name: L Speed
-          - entity: sensor.<DEVICE_SN>_right_blade_speed
-            name: R Speed
+            name: Speed
           - entity: sensor.<DEVICE_SN>_left_blade_current
-            name: L Current
-          - entity: sensor.<DEVICE_SN>_right_blade_current
-            name: R Current
+            name: Current
           - entity: sensor.<DEVICE_SN>_left_blade_temperature
-            name: L Temp
-          - entity: sensor.<DEVICE_SN>_right_blade_temperature
-            name: R Temp
+            name: Temp
 
-      # ---- Row 4: Battery cell temperatures (all 6) ----------------------
       - type: glance
-        title: Battery Cells
-        view_layout:
-          grid-column: 1 / -1
+        title: Right Blade
         entities:
-          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_1
-            name: Cell 1
-          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_2
-            name: Cell 2
-          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_3
-            name: Cell 3
-          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_4
-            name: Cell 4
-          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_5
-            name: Cell 5
-          - entity: sensor.<DEVICE_SN>_battery_cell_temperature_6
-            name: Cell 6
+          - entity: sensor.<DEVICE_SN>_right_blade_speed
+            name: Speed
+          - entity: sensor.<DEVICE_SN>_right_blade_current
+            name: Current
+          - entity: sensor.<DEVICE_SN>_right_blade_temperature
+            name: Temp
