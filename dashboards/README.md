@@ -1,6 +1,42 @@
-# Yarbo Monitoring Dashboard
+# Yarbo Dashboards
 
-Single-device monitoring dashboard for the `yarbo` Home Assistant integration.
+Single-device dashboards for the `yarbo` Home Assistant integration.
+
+## Available Dashboards
+
+| File | Description | Best for |
+|---|---|---|
+| `yarbo-monitoring.yaml` | Full overview — map, plan details, faults, signal | General monitoring |
+| `yarbo-active.yaml` | Active mow stats — battery, progress, blades, cells | Kiosk display during a mow |
+
+## Kiosk Viewing (yarbo-active)
+
+`yarbo-active` is designed for a **1920×1080 kiosk display with no scrolling**. At this resolution all 4 rows fit within the viewport.
+
+### Browser kiosk setup
+
+**Chrome/Chromium** (recommended):
+```bash
+chromium-browser --kiosk --noerrdialogs --disable-infobars \
+  --app=http://YOUR_HA_IP:8123/yarbo-active
+```
+
+**Home Assistant Companion App** (tablet/wall display):
+- Settings → Companion App → Dashboard → set to `yarbo-active`
+- Enable kiosk mode: add `?kiosk` to the URL — `http://YOUR_HA_IP:8123/yarbo-active?kiosk`
+  (hides sidebar and header, leaving only dashboard content)
+
+**Fully Kiosk Browser** (Android):
+- Set start URL to `http://YOUR_HA_IP:8123/yarbo-active?kiosk`
+- Enable "Keep Screen On" and "Motion Detection Wake"
+
+### Viewport requirement
+
+The layout is tuned for **1920×1080**. At narrower widths:
+- Battery cell values may truncate
+- Some glance card labels may be cut off
+
+Minimum usable width: ~1280px. At 1280×800 the layout still fits without scrolling but values are shorter.
 
 ## Prerequisites
 
