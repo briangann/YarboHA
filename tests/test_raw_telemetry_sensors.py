@@ -16,7 +16,6 @@ from custom_components.yarbo.sensor import (
     YarboProximityCenterSensor,
     YarboProximityLeftSensor,
     YarboProximityRightSensor,
-    YarboRainSensor,
     YarboSpeedSensor,
 )
 
@@ -142,32 +141,6 @@ class TestYarboOdomConfidenceSensor:
 
     def test_unique_id_format(self):
         assert _make(YarboOdomConfidenceSensor).unique_id == f"{SN}_odom_confidence"
-
-
-# ---------------------------------------------------------------------------
-# YarboRainSensor
-# ---------------------------------------------------------------------------
-
-
-class TestYarboRainSensor:
-    def test_rain_detected(self):
-        s = _make(YarboRainSensor, {"RunningStatusMSG": {"rain_sensor_data": 42.0}})
-        assert s.native_value == 42.0
-
-    def test_zero_rain(self):
-        s = _make(YarboRainSensor, {"RunningStatusMSG": {"rain_sensor_data": 0}})
-        assert s.native_value == 0.0
-
-    def test_missing_key_returns_none(self):
-        s = _make(YarboRainSensor, {"RunningStatusMSG": {}})
-        assert s.native_value is None
-
-    def test_string_value_returns_none(self):
-        s = _make(YarboRainSensor, {"RunningStatusMSG": {"rain_sensor_data": "wet"}})
-        assert s.native_value is None
-
-    def test_unique_id_format(self):
-        assert _make(YarboRainSensor).unique_id == f"{SN}_rain_sensor"
 
 
 # ---------------------------------------------------------------------------

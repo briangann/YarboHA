@@ -146,7 +146,6 @@ async def async_setup_entry(
         entities.append(YarboOdometryLeftSensor(coordinator, device))
         entities.append(YarboOdometryRightSensor(coordinator, device))
         entities.append(YarboOdomConfidenceSensor(coordinator, device))
-        entities.append(YarboRainSensor(coordinator, device))
         entities.append(YarboChuteSensor(coordinator, device))  # Snow Blower head only
         entities.append(YarboProximityLeftSensor(coordinator, device))
         entities.append(YarboProximityCenterSensor(coordinator, device))
@@ -266,20 +265,6 @@ class YarboOdomConfidenceSensor(_YarboRawSensorBase):
     def native_value(self) -> float | None:
         val = self._data().get("combined_odom_confidence")
         return round(float(val), 3) if isinstance(val, (int, float)) else None
-
-
-class YarboRainSensor(_YarboRawSensorBase):
-    """Rain sensor raw reading."""
-
-    _attr_name = "Rain Sensor"
-    _attr_icon = "mdi:weather-rainy"
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _unique_id_suffix = "rain_sensor"
-
-    @property
-    def native_value(self) -> float | None:
-        val = (self._data().get("RunningStatusMSG") or {}).get("rain_sensor_data")
-        return float(val) if isinstance(val, (int, float)) else None
 
 
 class YarboChuteSensor(_YarboRawSensorBase):
