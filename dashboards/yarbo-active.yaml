@@ -127,7 +127,7 @@ views:
           - entity: sensor.<DEVICE_SN>_right_wheel_current
             name: R Track Power
           - entity: sensor.<DEVICE_SN>_brushless_motor_current
-            name: Brushless A
+            name: Head Actuator
           - entity: sensor.<DEVICE_SN>_odometry_left
             name: L Dist
           - entity: sensor.<DEVICE_SN>_odometry_right
