@@ -11,32 +11,13 @@ Single-device dashboards for the `yarbo` Home Assistant integration.
 
 ## Kiosk Viewing (yarbo-active)
 
-`yarbo-active` is designed for a **1920×1080 kiosk display with no scrolling**. At this resolution all 4 rows fit within the viewport.
+`yarbo-active` fits on a single screen with no scrolling. Add `?kiosk` to the URL to hide the HA sidebar and header:
 
-### Browser kiosk setup
-
-**Chrome/Chromium** (recommended):
-```bash
-chromium-browser --kiosk --noerrdialogs --disable-infobars \
-  --app=http://YOUR_HA_IP:8123/yarbo-active
+```
+http://YOUR_HA_IP:8123/yarbo-active?kiosk
 ```
 
-**Home Assistant Companion App** (tablet/wall display):
-- Settings → Companion App → Dashboard → set to `yarbo-active`
-- Enable kiosk mode: add `?kiosk` to the URL — `http://YOUR_HA_IP:8123/yarbo-active?kiosk`
-  (hides sidebar and header, leaving only dashboard content)
-
-**Fully Kiosk Browser** (Android):
-- Set start URL to `http://YOUR_HA_IP:8123/yarbo-active?kiosk`
-- Enable "Keep Screen On" and "Motion Detection Wake"
-
-### Viewport requirement
-
-The layout is tuned for **1920×1080**. At narrower widths:
-- Battery cell values may truncate
-- Some glance card labels may be cut off
-
-Minimum usable width: ~1280px. At 1280×800 the layout still fits without scrolling but values are shorter.
+For a dedicated wall display, open this URL in a full-screen browser. **Fully Kiosk Browser** (Android) works well — enable "Keep Screen On" and set the start URL above.
 
 ## Prerequisites
 

@@ -249,6 +249,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 
 - When user says "save session please": append to SESSION.md (brief bullets) AND append to SESSION-LOG.md (detailed). Never overwrite either file.
 - CHANGELOG.md is user-facing only — clean release notes, no internal review scaffolding. Put regression analysis, decision logs, upstream sync findings, and commit references in CHANGELOG-dev.md instead.
+- `yarbo-active` dashboard targets **1920×1080 kiosk, no scrolling**. When making layout decisions use a 1920×1080 Playwright viewport. Layout has 4 fixed rows; do not add rows. `glance` cards cap at 5 items per row — use `type:grid columns:N` to force more items on one line.
 
 ---
 
