@@ -74,9 +74,9 @@ views:
                 name: Pause Status
               - entity: sensor.<DEVICE_SN>_plan_progress
                 name: Progress
-              - entity: sensor.<DEVICE_SN>_clean_area
+              - entity: sensor.<DEVICE_SN>_completed_plan_area
                 name: Area Done
-              - entity: sensor.<DEVICE_SN>_remaining_area
+              - entity: sensor.<DEVICE_SN>_remaining_plan_area
                 name: Remaining
               - entity: sensor.<DEVICE_SN>_estimated_time_remaining
                 name: Time Remaining
@@ -84,13 +84,13 @@ views:
           - type: glance
             title: Plan Stats
             entities:
-              - entity: sensor.<DEVICE_SN>_elapsed_time
+              - entity: sensor.<DEVICE_SN>_plan_elapsed_time
                 name: Elapsed
               - entity: sensor.<DEVICE_SN>_total_plan_time
                 name: Total Time
               - entity: sensor.<DEVICE_SN>_total_plan_area
                 name: Total Area
-              - entity: sensor.<DEVICE_SN>_battery_consumption
+              - entity: sensor.<DEVICE_SN>_plan_battery_consumption
                 name: Battery Used
 
           - type: entities

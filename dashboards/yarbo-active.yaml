@@ -28,7 +28,7 @@ views:
         entities:
           - entity: sensor.<DEVICE_SN>_battery
             name: Level
-          - entity: sensor.<DEVICE_SN>_battery_consumption
+          - entity: sensor.<DEVICE_SN>_plan_battery_consumption
             name: Consumed
           - entity: sensor.<DEVICE_SN>_charging_power
             name: Charge Power
@@ -51,11 +51,11 @@ views:
       - type: glance
         title: Progress
         entities:
-          - entity: sensor.<DEVICE_SN>_clean_area
+          - entity: sensor.<DEVICE_SN>_completed_plan_area
             name: Done
-          - entity: sensor.<DEVICE_SN>_remaining_area
+          - entity: sensor.<DEVICE_SN>_remaining_plan_area
             name: Left
-          - entity: sensor.<DEVICE_SN>_elapsed_time
+          - entity: sensor.<DEVICE_SN>_plan_elapsed_time
             name: Elapsed
           - entity: sensor.<DEVICE_SN>_estimated_time_remaining
             name: Remaining
@@ -93,13 +93,9 @@ views:
         entities:
           - entity: sensor.<DEVICE_SN>_left_blade_speed
             name: L Speed
-          - entity: sensor.<DEVICE_SN>_middle_blade_speed
-            name: C Speed
           - entity: sensor.<DEVICE_SN>_right_blade_speed
             name: R Speed
-          - entity: sensor.<DEVICE_SN>_left_blade_temp
+          - entity: sensor.<DEVICE_SN>_left_blade_temperature
             name: L Temp
-          - entity: sensor.<DEVICE_SN>_middle_blade_temp
-            name: C Temp
-          - entity: sensor.<DEVICE_SN>_right_blade_temp
+          - entity: sensor.<DEVICE_SN>_right_blade_temperature
             name: R Temp
