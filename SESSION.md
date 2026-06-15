@@ -67,3 +67,25 @@
 
 ### Open follow-ups
 - Battery threshold SOC check in `YarboStartPlanButton` — inspect live device `get_device_msg` REST response for min/max SOC fields from "working preferences"
+
+---
+
+## 2026-06-13 (evening) — Dashboard branch rebase + live HA migration to yarbo v0.5.2
+
+### Branch
+`feat/yarbo-monitoring-dashboard` → PR #19 (open, CI passing)
+
+### What was done
+- Rebased `feat/yarbo-monitoring-dashboard` onto main (v0.5.2); resolved CHANGELOG conflicts; pushed
+- Added `YarboMapGeoJsonSensor` — disabled by default, exposes `geojson` + `obstacles_geojson` in attributes for `ha-map-card` overlay (map_zones sensor no longer carries GeoJSON — moved to WebSocket in v0.5.1)
+- Updated dashboard to reference `sensor.<SN>_map_geojson` instead of `map_zones`
+- Updated `dashboards/README.md`: yarbo_bg → yarbo, added map_geojson enable step + recorder exclusion note
+- Deployed to live HA on zeus — rsync to `/home/bgann/home-assistant/config/custom_components/yarbo/`
+- Migrated live HA from `yarbo_bg` v0.4.13 → `yarbo` v0.5.2: added entry, deleted yarbo_bg
+- Entity IDs changed from `24430102gm0w6421_*` → `barn_yarbo_*` (area BARN + device name Yarbo); fixed by clearing `name_by_user` + `area_id` from device registry and renaming 49 entity IDs in entity registry back to `24430102gm0w6421_*`
+- Dashboard confirmed working: 0 console errors, map zones rendering, plan feedback live
+
+### Open follow-ups
+- PR #19 still open — merge when ready
+- Battery threshold SOC check still pending
+- Entity prefix lesson: `_attr_has_entity_name = True` + area assignment = `{area}_{device_name}_{entity}` prefix; cleared by setting `name_by_user=None` + `area_id=None` in device registry

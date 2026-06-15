@@ -4,6 +4,15 @@ What's new in each release of Yarbo.
 
 ---
 
+## [Unreleased]
+
+### Added
+- **Monitoring dashboard** — `dashboards/yarbo-monitoring.yaml`: stat chips (online, battery, RTK signal, HaLow RSSI), GeoJSON map via `ha-map-card` (work zones, no-go zones, plan path trace, robot position), plan progress, plan details, time/area stats, fault indicators.
+- `dashboards/generate.py` — CLI script: `python3 dashboards/generate.py <SN>` produces ready-to-paste YAML with the device serial number substituted. Accepts `-o <file>` to write to a file.
+- `dashboards/README.md` — setup instructions: install `ha-map-card` via HACS, enable the `plan_path` entity, run `generate.py`, import via HA raw configuration editor.
+
+---
+
 ## [0.5.0] - 2026-06-04
 
 Domain reverted from `yarbo_bg` back to `yarbo` to align with upstream. Integration name is now **Yarbo**.
@@ -33,7 +42,6 @@ Upstream sync from YarboInc monorepo (commits b009815a + 37edd28b).
 ### New
 - **WebSocket map API** — GeoJSON zone map served on demand via `yarbo/map_zones` WebSocket command instead of entity attributes, avoiding Home Assistant's 16 KB attribute limit
 - **Entity filters** — `entity_filters.py` provides `control_matches_device()` to suppress head-specific controls when the wrong attachment is fitted
-
 ### Changed
 - **Config-driven sensor and binary sensor** — all ~20 individual sensor classes replaced by `YarboConfigSensor` / `YarboConfigBinarySensor` driven by SDK field definitions; adds `battery_capacity` rescaling (firmware caps at 95%, rescaled to 100%), `charging_power` computed from voltage × current, and new `custom_extractor` variants
 - **Coordinator rewrite** — storage persistence via `homeassistant.helpers.storage`, keep-awake mode policy (`CONF_KEEP_AWAKE_MODE`: always / docked / off), typed SDK dispatch via `BoundDevice` API with raw MQTT fallback

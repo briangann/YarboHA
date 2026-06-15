@@ -1,0 +1,156 @@
+title: Yarbo Active
+views:
+  - title: Active Mow
+    path: yarbo-active
+    type: custom:grid-layout
+    layout:
+      grid-template-columns: 1fr 1fr 1fr 1fr
+    cards:
+
+      # ---- Row 1: Key status across all 4 columns -------------------------
+      - type: glance
+        title: Status
+        view_layout:
+          grid-column: 1 / -1
+        entities:
+          - entity: sensor.<DEVICE_SN>_auto_plan_status
+            name: Activity
+          - entity: sensor.<DEVICE_SN>_battery
+            name: Battery
+          - entity: sensor.<DEVICE_SN>_plan_progress
+            name: Progress
+          - entity: sensor.<DEVICE_SN>_speed
+            name: Speed
+          - entity: sensor.<DEVICE_SN>_rtk_signal
+            name: RTK
+          - entity: sensor.<DEVICE_SN>_positioning_confidence
+            name: Confidence
+          - entity: binary_sensor.<DEVICE_SN>_online
+            name: Online
+          - entity: sensor.<DEVICE_SN>_network
+            name: Network
+          - entity: binary_sensor.<DEVICE_SN>_rain_detected
+            name: Weather
+          - entity: sensor.<DEVICE_SN>_rain_sensor
+            name: Rain Sensor
+
+      # ---- Row 2: Plan / Progress / Motion / Proximity (1 col each) -------
+      - type: glance
+        title: Plan
+        entities:
+          - entity: sensor.<DEVICE_SN>_current_plan
+            name: Plan
+          - entity: sensor.<DEVICE_SN>_auto_plan_pause_status
+            name: Pause
+
+      - type: glance
+        title: Progress
+        entities:
+          - entity: sensor.<DEVICE_SN>_completed_plan_area
+            name: Done
+          - entity: sensor.<DEVICE_SN>_remaining_plan_area
+            name: Left
+          - entity: sensor.<DEVICE_SN>_plan_elapsed_time
+            name: Elapsed
+          - entity: sensor.<DEVICE_SN>_estimated_time_remaining
+            name: Remaining
+          - entity: sensor.<DEVICE_SN>_plan_battery_consumption
+            name: Batt Used
+
+      - type: glance
+        title: Motion
+        entities:
+          - entity: sensor.<DEVICE_SN>_speed
+            name: Speed
+          - entity: sensor.<DEVICE_SN>_gps_satellites
+            name: Sats
+          - entity: sensor.<DEVICE_SN>_rtk_heading
+            name: Heading
+
+      - type: glance
+        title: Proximity
+        entities:
+          - entity: sensor.<DEVICE_SN>_proximity_left
+            name: Left
+          - entity: sensor.<DEVICE_SN>_proximity_center
+            name: Center
+          - entity: sensor.<DEVICE_SN>_proximity_right
+            name: Right
+          - entity: binary_sensor.<DEVICE_SN>_obstacle_detected
+            name: Obstacle
+
+      # ---- Row 3: Battery (span 2) + Battery Cells (span 2) --------------
+      - type: glance
+        title: Battery
+        entities:
+          - entity: sensor.<DEVICE_SN>_battery
+            name: Level
+          - entity: sensor.<DEVICE_SN>_battery_health
+            name: Health
+          - entity: sensor.<DEVICE_SN>_charging_power
+            name: Charge
+
+      - type: grid
+        title: Battery Cells
+        columns: 6
+        square: false
+        view_layout:
+          grid-column: span 3
+        cards:
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_1
+            name: Cell 1
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_2
+            name: Cell 2
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_3
+            name: Cell 3
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_4
+            name: Cell 4
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_5
+            name: Cell 5
+          - type: entity
+            entity: sensor.<DEVICE_SN>_battery_cell_temperature_6
+            name: Cell 6
+
+      # ---- Row 4: Drive (span 2) + Left Blade (span 1) + Right Blade (span 1) ---
+      - type: glance
+        title: Drive
+        view_layout:
+          grid-column: span 2
+        entities:
+          - entity: sensor.<DEVICE_SN>_left_wheel_current
+            name: L Track Power
+          - entity: sensor.<DEVICE_SN>_right_wheel_current
+            name: R Track Power
+          - entity: sensor.<DEVICE_SN>_brushless_motor_current
+            name: Head Actuator
+          - entity: sensor.<DEVICE_SN>_odometry_left
+            name: L Dist
+          - entity: sensor.<DEVICE_SN>_odometry_right
+            name: R Dist
+
+      # Note: blade sensors are disabled by default.
+      # Enable in Settings → Devices → Yarbo → your device → entities.
+      - type: glance
+        title: Left Blade
+        entities:
+          - entity: sensor.<DEVICE_SN>_left_blade_speed
+            name: Speed
+          - entity: sensor.<DEVICE_SN>_left_blade_current
+            name: Current
+          - entity: sensor.<DEVICE_SN>_left_blade_temperature
+            name: Temp
+
+      - type: glance
+        title: Right Blade
+        entities:
+          - entity: sensor.<DEVICE_SN>_right_blade_speed
+            name: Speed
+          - entity: sensor.<DEVICE_SN>_right_blade_current
+            name: Current
+          - entity: sensor.<DEVICE_SN>_right_blade_temperature
+            name: Temp

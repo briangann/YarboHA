@@ -63,9 +63,28 @@ class TestPlanningStatus:
         )
         return _sensor(coord, fd)
 
-    def test_code_1_cleaning(self):
+    def test_code_1_mower_head_shows_mowing(self):
+        # head_type 3 = Mower → "Mowing"
+        coord = _make_coordinator(
+            data={"StateMSG": {"on_going_planning": 1}, "HeadMsg": {"head_type": 3}}
+        )
+        fd = _make_field_def(
+            path="StateMSG.on_going_planning", custom_extractor="planning_status"
+        )
+        assert _sensor(coord, fd).native_value == "Mowing"
+
+    def test_code_1_snow_blower_head_shows_blowing_snow(self):
+        coord = _make_coordinator(
+            data={"StateMSG": {"on_going_planning": 1}, "HeadMsg": {"head_type": 1}}
+        )
+        fd = _make_field_def(
+            path="StateMSG.on_going_planning", custom_extractor="planning_status"
+        )
+        assert _sensor(coord, fd).native_value == "Blowing Snow"
+
+    def test_code_1_no_head_data_defaults_mowing(self):
         s = self._make(1)
-        assert s.native_value == "Cleaning"
+        assert s.native_value == "Mowing"
 
     def test_negative_unmapped_returns_error(self):
         # -5 is not in PLANNING_STATUS_MAP → falls back to generic "Error"

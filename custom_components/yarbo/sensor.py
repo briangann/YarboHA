@@ -10,10 +10,11 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTime
-from homeassistant.core import HomeAssistant
+
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from yarbo_robot_sdk.device_helpers import convert_local_to_gps, extract_field
 
@@ -54,9 +55,19 @@ MEASUREMENT_CLASSES = {
 }
 
 # on_going_planning status code → display text
+# keep — intentional: verb for code 1 is head-type-aware (see _extract_custom planning_status)
+_HEAD_TYPE_VERB: dict[int, str] = {
+    0: "Working",  # No head
+    1: "Blowing Snow",  # Snow Blower
+    2: "Blowing",  # Blower
+    3: "Mowing",  # Mower
+    4: "Working",  # Smart Cover
+    5: "Mowing",  # Mower Pro
+}
+
 PLANNING_STATUS_MAP: dict[int, str] = {
     0: "Not Started",
-    1: "Cleaning",
+    1: "Cleaning",  # overridden to head-type verb in _extract_custom
     2: "Calculating Route",
     3: "Heading to Area",
     5: "Completed",
@@ -145,6 +156,8 @@ async def async_setup_entry(
         entities.append(YarboSpeedSensor(coordinator, device))
         entities.append(YarboOdometryLeftSensor(coordinator, device))
         entities.append(YarboOdometryRightSensor(coordinator, device))
+        entities.append(YarboOdometryTotalLeftSensor(coordinator, device))
+        entities.append(YarboOdometryTotalRightSensor(coordinator, device))
         entities.append(YarboOdomConfidenceSensor(coordinator, device))
         entities.append(YarboChuteSensor(coordinator, device))  # Snow Blower head only
         entities.append(YarboProximityLeftSensor(coordinator, device))
@@ -338,6 +351,92 @@ class YarboOdometryRightSensor(_YarboOdometrySensor):
 
     _attr_name = "Odometry Right"
     _unique_id_suffix = "odometry_right"
+    _mqtt_key = "dist_right"
+
+
+class _YarboOdometryTotalSensor(
+    CoordinatorEntity[YarboDataUpdateCoordinator],
+    RestoreEntity,
+    SensorEntity,
+):
+    """Accumulates per-wheel odometry across power cycles and firmware resets.
+
+    Raw odometry resets to 0 each power-on. This sensor adds deltas to a
+    persistent total, skipping any frame where the raw value drops (reset
+    detected) so the accumulated value never decreases.
+    """
+
+    _attr_has_entity_name = True
+    _attr_native_unit_of_measurement = "m"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:counter"
+    _unique_id_suffix: str = ""
+    _mqtt_key: str = ""
+
+    def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_{self._unique_id_suffix}"
+        self._accumulated: float = 0.0
+        self._last_raw: float | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.sn)},
+            name=self._device.name,
+            manufacturer="Yarbo",
+            model=self._device.model,
+            serial_number=self._device.sn,
+        )
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last_state = await self.async_get_last_state()
+        if last_state and last_state.state not in (None, "unknown", "unavailable"):
+            try:
+                self._accumulated = float(last_state.state)
+            except ValueError:
+                pass
+        if last_state and last_state.attributes:
+            try:
+                self._last_raw = float(last_state.attributes["last_raw"])
+            except (KeyError, TypeError, ValueError):
+                pass
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        data = (self.coordinator.data or {}).get(self._device.sn) or {}
+        val = (data.get("WheelSpeedMSG") or {}).get(self._mqtt_key)
+        if isinstance(val, (int, float)):
+            raw = round(float(val), 1)
+            if self._last_raw is not None and raw >= self._last_raw:
+                self._accumulated = round(self._accumulated + (raw - self._last_raw), 1)
+            self._last_raw = raw
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> float | None:
+        return self._accumulated if self._last_raw is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {"last_raw": self._last_raw}
+
+
+class YarboOdometryTotalLeftSensor(_YarboOdometryTotalSensor):
+    """Lifetime accumulated left wheel distance across power cycles."""
+
+    _attr_name = "Odometry Total Left"
+    _unique_id_suffix = "odometry_total_left"
+    _mqtt_key = "dist_left"
+
+
+class YarboOdometryTotalRightSensor(_YarboOdometryTotalSensor):
+    """Lifetime accumulated right wheel distance across power cycles."""
+
+    _attr_name = "Odometry Total Right"
+    _unique_id_suffix = "odometry_total_right"
     _mqtt_key = "dist_right"
 
 
@@ -1223,7 +1322,13 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
         # Device class
         if field_def.value_map:
             self._attr_device_class = SensorDeviceClass.ENUM
-            self._attr_options = list(dict.fromkeys(field_def.value_map.values()))
+            options = list(dict.fromkeys(field_def.value_map.values()))
+            # keep — planning_status returns head-type verbs (Mowing etc.) not in SDK value_map
+            if field_def.custom_extractor == "planning_status":
+                for verb in _HEAD_TYPE_VERB.values():
+                    if verb not in options:
+                        options.append(verb)
+            self._attr_options = options
         elif field_def.device_class:
             try:
                 self._attr_device_class = SensorDeviceClass(field_def.device_class)
@@ -1356,6 +1461,13 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
             if raw is None:
                 return None
             code = int(raw)
+            if code == 1:
+                head_type = extract_field(data, "HeadMsg.head_type")
+                return (
+                    _HEAD_TYPE_VERB.get(int(head_type), "Mowing")
+                    if head_type is not None
+                    else "Mowing"
+                )
             if code in PLANNING_STATUS_MAP:
                 return PLANNING_STATUS_MAP[code]
             return "Error" if code < 0 else None
@@ -1433,18 +1545,21 @@ class YarboCurrentPlanSensor(
 
 
 class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
-    """Actual cleaned area in the current run (m²)."""
+    """Actual cleaned area in the current run — unit follows HA unit system."""
 
     _attr_has_entity_name = True
     _attr_name = "Completed Plan Area"
     _attr_icon = "mdi:texture-box"
-    _attr_native_unit_of_measurement = "m²"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator)
         self._device = device
         self._attr_unique_id = f"{device.sn}_clean_area"
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        return _area_unit(self.hass)
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -1455,7 +1570,7 @@ class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], Sensor
         val = (self.coordinator.plan_feedback.get(self._device.sn) or {}).get(
             "actualCleanArea"
         )
-        return round(float(val), 2) if val is not None else None
+        return _convert_area(self.hass, float(val)) if val is not None else None
 
 
 class YarboBatteryConsumptionSensor(
@@ -1528,16 +1643,19 @@ class YarboPlanProgressSensor(_YarboPlanFeedbackBase):
 
 
 class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
-    """Remaining area to clean in current run (m²)."""
+    """Remaining area — unit follows HA unit system."""
 
     _attr_name = "Remaining Plan Area"
     _attr_icon = "mdi:texture-box"
-    _attr_native_unit_of_measurement = "m²"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
         self._attr_unique_id = f"{device.sn}_remaining_area"
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        return _area_unit(self.hass)
 
     @property
     def native_value(self) -> float | None:
@@ -1546,53 +1664,82 @@ class YarboRemainingAreaSensor(_YarboPlanFeedbackBase):
         total = pf.get("totalCleanArea")
         if actual is None or total is None:
             return None
-        return round(max(float(total) - float(actual), 0), 2)
+        return _convert_area(self.hass, max(float(total) - float(actual), 0))
+
+
+_M2_TO_FT2 = 10.7639
+
+
+def _area_unit(hass) -> str:
+    """Return area unit from HA unit system (m² or ft²)."""
+    return hass.config.units.area_unit
+
+
+def _convert_area(hass, m2: float) -> float:
+    """Convert m² to user's preferred area unit."""
+    unit = hass.config.units.area_unit
+    return round(m2, 2) if unit == "m²" else round(m2 * _M2_TO_FT2, 2)
+
+
+def _fmt_duration(seconds: float) -> str:
+    """Format seconds as 'Xh Ym Zs', 'Ym Zs', or 'Zs'. keep — portable display format."""
+    s = int(max(seconds, 0))
+    h, remainder = divmod(s, 3600)
+    m, sec = divmod(remainder, 60)
+    if h:
+        return f"{h}h {m}m {sec}s"
+    if m:
+        return f"{m}m {sec}s"
+    return f"{sec}s"
 
 
 class YarboTimeRemainingSensor(_YarboPlanFeedbackBase):
-    """Estimated time remaining in current plan (seconds)."""
+    """Estimated time remaining — displayed as Xh Ym Zs; raw seconds in attribute."""
 
     _attr_name = "Estimated Time Remaining"
     _attr_icon = "mdi:timer-outline"
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
         self._attr_unique_id = f"{device.sn}_time_remaining"
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> str | None:
         val = self._pf().get("leftTime")
-        return round(max(float(val), 0), 0) if val is not None else None
+        return _fmt_duration(float(val)) if val is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        val = self._pf().get("leftTime")
+        return {"seconds": round(max(float(val), 0), 0)} if val is not None else {}
 
 
 class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
-    """Elapsed time in current plan run (seconds)."""
+    """Elapsed plan time — displayed as Xh Ym Zs; raw seconds in attribute."""
 
     _attr_name = "Plan Elapsed Time"
     _attr_icon = "mdi:timer"
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
         self._attr_unique_id = f"{device.sn}_elapsed_time"
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> str | None:
         val = self._pf().get("duration")
-        return round(float(val), 0) if val is not None else None
+        return _fmt_duration(float(val)) if val is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        val = self._pf().get("duration")
+        return {"seconds": round(float(val), 0)} if val is not None else {}
 
 
 class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
-    """Total area of the current plan (m²)."""
+    """Total plan area — unit follows HA unit system."""
 
     _attr_name = "Total Plan Area"
     _attr_icon = "mdi:texture-box"
-    _attr_native_unit_of_measurement = "m²"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
@@ -1600,28 +1747,34 @@ class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
         self._attr_unique_id = f"{device.sn}_total_plan_area"
 
     @property
+    def native_unit_of_measurement(self) -> str:
+        return _area_unit(self.hass)
+
+    @property
     def native_value(self) -> float | None:
         val = self._pf().get("totalCleanArea")
-        return round(float(val), 2) if val is not None else None
+        return _convert_area(self.hass, float(val)) if val is not None else None
 
 
 class YarboTotalPlanTimeSensor(_YarboPlanFeedbackBase):
-    """Estimated total time for the current plan (seconds)."""
+    """Total estimated plan time — displayed as Xh Ym Zs; raw seconds in attribute."""
 
     _attr_name = "Total Plan Time"
     _attr_icon = "mdi:timer-outline"
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
-    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator, device) -> None:
         super().__init__(coordinator, device)
         self._attr_unique_id = f"{device.sn}_total_plan_time"
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> str | None:
         val = self._pf().get("totalTime")
-        return round(float(val), 0) if val is not None else None
+        return _fmt_duration(float(val)) if val is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        val = self._pf().get("totalTime")
+        return {"seconds": round(float(val), 0)} if val is not None else {}
 
 
 class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):

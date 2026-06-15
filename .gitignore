@@ -41,3 +41,9 @@ desktop.ini
 
 # MCP server logs
 mcp_*.log
+
+# Brainstorming sessions
+docs/superpowers/
+.superpowers/
+# MCP e2e
+.playwright-mcp/
