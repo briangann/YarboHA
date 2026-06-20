@@ -203,6 +203,7 @@ async def async_setup_entry(
                 YarboMiddleBladeErrSensor(coordinator, device),
                 YarboMiddleBladeOverCurrentSensor(coordinator, device),
                 YarboLeftBladeCurrentSensor(coordinator, device),
+                YarboLeftBladePowerSensor(coordinator, device),
                 YarboLeftBladeRpmSensor(coordinator, device),
                 YarboLeftBladeSpeedSensor(coordinator, device),
                 YarboLeftBladeTempSensor(coordinator, device),
@@ -210,6 +211,7 @@ async def async_setup_entry(
                 YarboLeftBladeErrSensor(coordinator, device),
                 YarboLeftBladeOverCurrentSensor(coordinator, device),
                 YarboRightBladeCurrentSensor(coordinator, device),
+                YarboRightBladePowerSensor(coordinator, device),
                 YarboRightBladeRpmSensor(coordinator, device),
                 YarboRightBladeSpeedSensor(coordinator, device),
                 YarboRightBladeTempSensor(coordinator, device),
@@ -773,6 +775,9 @@ class _YarboMowerBladeSensor(_YarboRawSensorBase):
 
 
 # Middle blade (mower_head_info02)
+# TODO(yarbo-questions Q3): Confirm whether mower_head_info02 belongs to the snow blower
+# head (type 1) rather than the mower. No "middle blade" has been observed on mower heads.
+# If snow blower, re-gate these sensors to _HEAD_SNOW_BLOWER and rename accordingly.
 
 
 class YarboMiddleBladeCurrentSensor(_YarboMowerBladeSensor):
@@ -849,6 +854,37 @@ class YarboLeftBladeCurrentSensor(_YarboMowerBladeSensor):
     _msg_key = "mower_head_info03"
     _mqtt_key = "left_blade_motor_current"
 
+    @property
+    def native_value(self) -> float | None:
+        # Firmware encodes current as a fixed-point integer (1 unit = 0.01 A).
+        val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
+        return round(float(val) / 100, 3) if isinstance(val, (int, float)) else None
+
+
+class YarboLeftBladePowerSensor(_YarboMowerBladeSensor):
+    _attr_name = "Left Blade Power"
+    _attr_icon = "mdi:lightning-bolt"
+    _attr_native_unit_of_measurement = "W"
+    _attr_device_class = SensorDeviceClass.POWER
+    _unique_id_suffix = "left_blade_power"
+    _msg_key = "mower_head_info03"
+    _mqtt_key = "left_blade_motor_current"
+
+    @property
+    def native_value(self) -> float | None:
+        # P = V × I. Current is fixed-point (÷100 → A); voltage may arrive as mV (÷1000).
+        val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
+        if not isinstance(val, (int, float)):
+            return None
+        current_a = float(val) / 100
+        voltage = self._data().get("BatteryMSG", {}).get("voltage")
+        if not isinstance(voltage, (int, float)):
+            return None
+        voltage_v = (
+            float(voltage) / 1000 if abs(float(voltage)) > 1000 else float(voltage)
+        )
+        return round(voltage_v * current_a, 2)
+
 
 class YarboLeftBladeRpmSensor(_YarboMowerBladeSensor):
     _attr_name = "Left Blade RPM"
@@ -913,6 +949,37 @@ class YarboRightBladeCurrentSensor(_YarboMowerBladeSensor):
     _unique_id_suffix = "right_blade_current"
     _msg_key = "mower_head_info04"
     _mqtt_key = "right_blade_motor_current"
+
+    @property
+    def native_value(self) -> float | None:
+        # Firmware encodes current as a fixed-point integer (1 unit = 0.01 A).
+        val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
+        return round(float(val) / 100, 3) if isinstance(val, (int, float)) else None
+
+
+class YarboRightBladePowerSensor(_YarboMowerBladeSensor):
+    _attr_name = "Right Blade Power"
+    _attr_icon = "mdi:lightning-bolt"
+    _attr_native_unit_of_measurement = "W"
+    _attr_device_class = SensorDeviceClass.POWER
+    _unique_id_suffix = "right_blade_power"
+    _msg_key = "mower_head_info04"
+    _mqtt_key = "right_blade_motor_current"
+
+    @property
+    def native_value(self) -> float | None:
+        # P = V × I. Current is fixed-point (÷100 → A); voltage may arrive as mV (÷1000).
+        val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
+        if not isinstance(val, (int, float)):
+            return None
+        current_a = float(val) / 100
+        voltage = self._data().get("BatteryMSG", {}).get("voltage")
+        if not isinstance(voltage, (int, float)):
+            return None
+        voltage_v = (
+            float(voltage) / 1000 if abs(float(voltage)) > 1000 else float(voltage)
+        )
+        return round(voltage_v * current_a, 2)
 
 
 class YarboRightBladeRpmSensor(_YarboMowerBladeSensor):
