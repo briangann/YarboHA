@@ -246,3 +246,44 @@ genuinely prevents movement. See `button.py` line 300 comment.
 
 ### Open follow-ups
 - Battery threshold SOC check in `YarboStartPlanButton` — needs live `get_device_msg` REST payload to identify min/max SOC fields
+
+---
+
+## 2026-06-20 — Blade metric fixes + power sensors
+
+### Branch
+`feat/blade-metrics` (branched from `main`)
+
+### Commits
+- `5614355` — fix(sensor): scale left/right blade current by ÷100, add blade power sensors
+- `94bf96f` — chore: update session notes
+
+---
+
+### Left/right blade current scaling fix
+
+**Root cause:** `_YarboMowerBladeSensor.native_value` returns the raw MQTT integer directly.
+Firmware encodes motor current as a fixed-point integer (1 unit = 0.01 A) — a common embedded
+convention to avoid floating point on the MCU. Raw value 50 = 0.50 A, 153 = 1.53 A.
+
+**Fix:** Override `native_value` in `YarboLeftBladeCurrentSensor` and `YarboRightBladeCurrentSensor`
+to divide by 100. Base class and middle blade sensor untouched (middle blade not confirmed same encoding).
+
+### Blade power sensors
+
+Added `YarboLeftBladePowerSensor` and `YarboRightBladePowerSensor`.
+- P = V × I using live `BatteryMSG.voltage` (36 V nominal, 42 V fully charged, NCM chemistry)
+- Voltage may arrive as V or mV — `> 1000` guard normalizes to V (same pattern as `charging_power` extractor)
+- Both sensors disabled by default (inherited from `_YarboMowerBladeSensor`)
+- HA entity IDs: `sensor.<device>_left_blade_power`, `sensor.<device>_right_blade_power`
+
+### Open questions captured (docs/yarbo-questions.md)
+- **Q1:** `*_blade_motor_temp_status` integer mapping — suspected `0=OK, 1=Warning, 2=Fault`; need spec to make enum sensor
+- **Q2:** Does middle blade current use same ÷100 encoding?
+- **Q3:** Does `mower_head_info02` belong to snow blower head (type 1) rather than mower? No middle blade observed on physical mower. TODO comment added in sensor.py.
+- **Q4:** `*_blade_motor_over_current_info` — `_info` suffix suggests status code/boolean, not measurement. If boolean → should be `binary_sensor`, not `sensor`.
+
+### Tests
+30 new tests in `tests/test_blade_current_scaling.py`:
+- Current scaling: typical values, large values, zero, float raw, missing keys, string value, unit assertion
+- Power sensors: V input, mV input, zero current, missing voltage, missing current, string current, unit assertion

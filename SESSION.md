@@ -102,3 +102,23 @@
 
 ### Open follow-ups
 - Battery threshold SOC check in `YarboStartPlanButton` — needs live device payload
+
+---
+
+## 2026-06-20 — Blade metric fixes + power sensors
+
+### Branch
+`feat/blade-metrics` (branched from `main`)
+
+### What was done
+- Fixed left/right blade current ÷100 scaling (firmware = fixed-point integer, 1 unit = 0.01 A)
+- Added `YarboLeftBladePowerSensor` + `YarboRightBladePowerSensor` (P = V × I, live battery voltage with mV normalization)
+- Added `docs/yarbo-questions.md` — open questions list for Yarbo firmware team (Q1–Q4)
+- Added TODO on middle blade section pending Q3 clarification (snow blower vs mower)
+- 30 new tests in `tests/test_blade_current_scaling.py`; 0 pyright errors
+
+### Open questions (docs/yarbo-questions.md)
+- Q1: `*_blade_motor_temp_status` integer mapping
+- Q2: Does middle blade current use same ÷100 encoding?
+- Q3: Does `mower_head_info02` belong to snow blower head (type 1)?
+- Q4: What does `*_blade_motor_over_current_info` encode — boolean, fault code, bitfield?
