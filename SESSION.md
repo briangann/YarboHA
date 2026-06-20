@@ -89,3 +89,16 @@
 - PR #19 still open — merge when ready
 - Battery threshold SOC check still pending
 - Entity prefix lesson: `_attr_has_entity_name = True` + area assignment = `{area}_{device_name}_{entity}` prefix; cleared by setting `name_by_user=None` + `area_id=None` in device registry
+
+
+---
+
+## 2026-06-15 — Upstream lineage repair + audit
+
+### What was done
+- Merged `232f29e` (b009815a) and `5a3877e` (37edd28b) into `main` via `-s ours` (lineage only); fork now 0 behind upstream/main
+- Full file-by-file audit confirmed: nothing from upstream is missing in our fork
+- Wireless-charging precondition removal documented: robot auto-undocks from wireless charging; wired charging (`rechargeState in (1,3)`) correctly kept as blocker
+
+### Open follow-ups
+- Battery threshold SOC check in `YarboStartPlanButton` — needs live device payload

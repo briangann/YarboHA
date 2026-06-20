@@ -216,3 +216,33 @@ Address PR #23 blockers 1–5 in order. Start with `device_tracker.py` recorder 
 ### Final state
 - Dashboard fully working on yarbo v0.5.2: map zones, plan feedback (44.1%), device status, faults
 - PR #19 open for merge; CI passing
+
+---
+
+## 2026-06-15 — Upstream lineage repair + full upstream audit
+
+### Lineage repair
+- `232f29e` (monorepo b009815a) merged into `main` via `-s ours` (lineage only) — content already in `5354fb2`
+- `5a3877e` (monorepo 37edd28b) merged into `main` via `-s ours` (lineage only — only changed SDK pin 0.2.0→0.2.1, already in our manifest)
+- Fork is now **0 commits behind upstream/main**
+- PRs: #19 (dashboard) already merged; lineage done directly on `main` via fast-forward, no PR needed
+
+### Full upstream audit result
+Every file in `upstream/main` was diffed against our `HEAD`. Findings:
+- `entity_filters.py` — identical
+- `number.py` — ours strictly better: null guards on `_client`, proper bound dispatch, `float | None` type annotation
+- `button.py` — 59 upstream-only lines are: multiline class header formatting + intentionally-removed wireless-charging precondition
+- All other files — our additions are deliberate restorations; nothing upstream added was missed
+- `services.yaml` — we have it, upstream doesn't (intentional: we restored `yarbo.set_nogozone_enabled`)
+- Manifest: upstream at v0.3.3 / SDK ≥0.2.0; ours at v0.5.2 / SDK ≥0.2.1 ✓
+
+### Wireless-charging check rationale (documented for future maintainers)
+Upstream added `BatteryMSG.status > 1` as a "device is charging" block in `YarboStartPlanButton`.
+We removed it because the Yarbo robot **autonomously undocks from wireless charging** when a plan is
+issued — identical to how the official app behaves. Blocking it in HA would make the integration
+less capable than the app for no safety reason.
+Wired charging IS kept as a blocker (`BodyMsg.rechargeState in (1, 3)`) — a physical cable
+genuinely prevents movement. See `button.py` line 300 comment.
+
+### Open follow-ups
+- Battery threshold SOC check in `YarboStartPlanButton` — needs live `get_device_msg` REST payload to identify min/max SOC fields
