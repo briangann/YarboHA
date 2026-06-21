@@ -135,30 +135,103 @@ views:
 
       # Note: blade sensors are disabled by default.
       # Enable in Settings → Devices → Yarbo → your device → entities.
-      - type: glance
-        title: Left Blade
-        entities:
-          - entity: sensor.<DEVICE_SN>_left_blade_speed
-            name: Speed
-          - entity: sensor.<DEVICE_SN>_left_blade_rpm
-            name: RPM
-          - entity: sensor.<DEVICE_SN>_left_blade_current
-            name: Current
-          - entity: sensor.<DEVICE_SN>_left_blade_power
-            name: Power
-          - entity: sensor.<DEVICE_SN>_left_blade_temperature
-            name: Temp
+      # Requires HACS: custom:canvas-gauge-card
+      - type: vertical-stack
+        cards:
+          - type: custom:canvas-gauge-card
+            entity: sensor.<DEVICE_SN>_left_blade_rpm
+            gauge:
+              type: RadialGauge
+              title: Left Blade RPM
+              units: RPM
+              minValue: 0
+              maxValue: 4000
+              majorTicks: ["0","500","1000","1500","2000","2500","3000","3500","4000"]
+              highlights:
+                - from: 0
+                  to: 3000
+                  color: rgba(0,200,0,0.25)
+                - from: 3000
+                  to: 3700
+                  color: rgba(255,165,0,0.35)
+                - from: 3700
+                  to: 4000
+                  color: rgba(255,0,0,0.4)
+              colorPlate: "#1a1a1a"
+              colorNeedle: "#ffffff"
+              colorNeedleEnd: "#ff4444"
+              colorMajorTicks: "#888"
+              colorMinorTicks: "#555"
+              colorNumbers: "#aaa"
+              colorTitle: "#ccc"
+              colorUnits: "#ccc"
+              borderShadowWidth: 0
+              borders: false
+              needleType: arrow
+              needleWidth: 2
+              animationDuration: 500
+              animationRule: linear
+          - type: glance
+            show_name: true
+            show_icon: false
+            entities:
+              - entity: sensor.<DEVICE_SN>_left_blade_rpm
+                name: RPM
+              - entity: sensor.<DEVICE_SN>_left_blade_speed
+                name: Speed %
+              - entity: sensor.<DEVICE_SN>_left_blade_current
+                name: Current
+              - entity: sensor.<DEVICE_SN>_left_blade_power
+                name: Power
+              - entity: sensor.<DEVICE_SN>_left_blade_temperature
+                name: Temp
 
-      - type: glance
-        title: Right Blade
-        entities:
-          - entity: sensor.<DEVICE_SN>_right_blade_speed
-            name: Speed
-          - entity: sensor.<DEVICE_SN>_right_blade_rpm
-            name: RPM
-          - entity: sensor.<DEVICE_SN>_right_blade_current
-            name: Current
-          - entity: sensor.<DEVICE_SN>_right_blade_power
-            name: Power
-          - entity: sensor.<DEVICE_SN>_right_blade_temperature
-            name: Temp
+      - type: vertical-stack
+        cards:
+          - type: custom:canvas-gauge-card
+            entity: sensor.<DEVICE_SN>_right_blade_rpm
+            gauge:
+              type: RadialGauge
+              title: Right Blade RPM
+              units: RPM
+              minValue: 0
+              maxValue: 4000
+              majorTicks: ["0","500","1000","1500","2000","2500","3000","3500","4000"]
+              highlights:
+                - from: 0
+                  to: 3000
+                  color: rgba(0,200,0,0.25)
+                - from: 3000
+                  to: 3700
+                  color: rgba(255,165,0,0.35)
+                - from: 3700
+                  to: 4000
+                  color: rgba(255,0,0,0.4)
+              colorPlate: "#1a1a1a"
+              colorNeedle: "#ffffff"
+              colorNeedleEnd: "#ff4444"
+              colorMajorTicks: "#888"
+              colorMinorTicks: "#555"
+              colorNumbers: "#aaa"
+              colorTitle: "#ccc"
+              colorUnits: "#ccc"
+              borderShadowWidth: 0
+              borders: false
+              needleType: arrow
+              needleWidth: 2
+              animationDuration: 500
+              animationRule: linear
+          - type: glance
+            show_name: true
+            show_icon: false
+            entities:
+              - entity: sensor.<DEVICE_SN>_right_blade_rpm
+                name: RPM
+              - entity: sensor.<DEVICE_SN>_right_blade_speed
+                name: Speed %
+              - entity: sensor.<DEVICE_SN>_right_blade_current
+                name: Current
+              - entity: sensor.<DEVICE_SN>_right_blade_power
+                name: Power
+              - entity: sensor.<DEVICE_SN>_right_blade_temperature
+                name: Temp
