@@ -140,6 +140,8 @@ views:
         entities:
           - entity: sensor.<DEVICE_SN>_left_blade_speed
             name: Speed
+          - entity: sensor.<DEVICE_SN>_left_blade_rpm
+            name: RPM
           - entity: sensor.<DEVICE_SN>_left_blade_current
             name: Current
           - entity: sensor.<DEVICE_SN>_left_blade_power
@@ -152,6 +154,8 @@ views:
         entities:
           - entity: sensor.<DEVICE_SN>_right_blade_speed
             name: Speed
+          - entity: sensor.<DEVICE_SN>_right_blade_rpm
+            name: RPM
           - entity: sensor.<DEVICE_SN>_right_blade_current
             name: Current
           - entity: sensor.<DEVICE_SN>_right_blade_power
