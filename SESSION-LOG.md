@@ -287,3 +287,45 @@ Added `YarboLeftBladePowerSensor` and `YarboRightBladePowerSensor`.
 30 new tests in `tests/test_blade_current_scaling.py`:
 - Current scaling: typical values, large values, zero, float raw, missing keys, string value, unit assertion
 - Power sensors: V input, mV input, zero current, missing voltage, missing current, string current, unit assertion
+
+---
+
+## 2026-06-20 (afternoon) — Blade dashboard gauges + direction handling
+
+### Branch
+`feat/blade-metrics`
+
+### Commits
+- `c2ffcf9` — feat(dashboard): add blade power (W) to left/right blade cards
+- `1408df0` — feat(dashboard): add blade RPM to left/right blade cards
+- `b451468` — feat(dashboard): canvas-gauge RPM instruments + numeric RPM/speed/current/power/temp
+- `c29fe9f` — fix(dashboard): canvas-gauge-card-continued uses radial-gauge not RadialGauge
+- `99ba236` — fix(sensor): left blade RPM abs value + CCW/CW direction attr; power uses abs(I)
+- `b3b5a9d` — fix(dashboard): blade RPM gauge zones match real operating range
+- `379be7d` — fix(dashboard): blade RPM red zone starts at 200 not 0 — idle is not blocked
+
+### Canvas gauge
+- HACS card: `canvas-gauge-card-continued` — installs as `custom:canvas-gauge-card`
+- Key difference from original: uses `type: radial-gauge` (not `RadialGauge`)
+- Gauge zones based on confirmed field data: normal = 2900–3000 RPM at 80% speed
+
+### Left blade direction
+- Firmware reports left blade RPM as negative (CCW counter-rotation vs right blade CW)
+- `YarboLeftBladeRpmSensor.native_value` returns `abs()` for gauge display
+- `extra_state_attributes` exposes `direction: "CCW"` or `"CW"` based on raw sign
+- `YarboLeftBladePowerSensor` uses `abs(current)` — watts are always ≥ 0
+- `YarboLeftBladeCurrentSensor` keeps signed value — directional data preserved
+
+### Gauge zone design
+| Range | Color | Meaning |
+|---|---|---|
+| 0–200 | None (plate) | Idle / stopped |
+| 200–2800 | Red | Spinning but blocked |
+| 2800–2900 | Amber | Low / recovering |
+| 2900–3100 | Green | Normal operating |
+| 3100–4000 | Dim gray | Uncharted headroom |
+
+### Tests
+39 tests total in `tests/test_blade_current_scaling.py` (+9 new):
+- RPM abs value, direction attribute (CCW/CW/zero), missing data, unit
+- Power negative current → positive watts

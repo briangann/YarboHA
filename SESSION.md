@@ -122,3 +122,18 @@
 - Q2: Does middle blade current use same ÷100 encoding?
 - Q3: Does `mower_head_info02` belong to snow blower head (type 1)?
 - Q4: What does `*_blade_motor_over_current_info` encode — boolean, fault code, bitfield?
+
+---
+
+## 2026-06-20 (afternoon) — Blade dashboard gauges + direction handling
+
+### Branch
+`feat/blade-metrics`
+
+### What was done
+- Added `custom:canvas-gauge-card` (canvas-gauge-card-continued) RPM gauges to dashboard for left/right blades
+- Fixed gauge type: continued fork uses `radial-gauge` not `RadialGauge`
+- Left blade RPM is negative (CCW counter-rotation): `native_value` returns `abs()`, `extra_state_attributes` exposes `direction: CCW/CW`
+- Left blade power uses `abs(current)` — watts never go negative
+- Gauge zones calibrated to real operating data: 2900–3000 RPM normal at 80% speed; red starts at 200 (not 0, idle is not blocked); amber 2800–2900; green 2900–3100; gray 3100–4000
+- Deployed to zeus; 39 tests pass, 0 pyright errors
