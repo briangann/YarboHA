@@ -13,6 +13,7 @@ from unittest.mock import MagicMock
 from custom_components.yarbo.sensor import (
     YarboLeftBladeCurrentSensor,
     YarboLeftBladePowerSensor,
+    YarboLeftBladeRpmSensor,
     YarboRightBladeCurrentSensor,
     YarboRightBladePowerSensor,
 )
@@ -198,6 +199,11 @@ class TestYarboLeftBladePowerSensor:
         s = _make(YarboLeftBladePowerSensor, {})
         assert s.native_unit_of_measurement == "W"
 
+    def test_negative_current_gives_positive_watts(self):
+        # Left blade CCW: raw -50 → |−0.50 A| × 36 V = 18.0 W
+        s = _make(YarboLeftBladePowerSensor, self._data(-50, 36.0))
+        assert s.native_value == 18.0
+
 
 # ---------------------------------------------------------------------------
 # YarboRightBladePowerSensor
@@ -244,3 +250,47 @@ class TestYarboRightBladePowerSensor:
     def test_native_unit_is_watts(self):
         s = _make(YarboRightBladePowerSensor, {})
         assert s.native_unit_of_measurement == "W"
+
+
+# ---------------------------------------------------------------------------
+# YarboLeftBladeRpmSensor — abs value + direction attribute
+# ---------------------------------------------------------------------------
+
+
+class TestYarboLeftBladeRpmSensor:
+    def _data(self, rpm_raw):
+        return {"mower_head_info03": {"left_blade_motor_rpm": rpm_raw}}
+
+    def test_negative_rpm_returns_abs(self):
+        # Left blade CCW: raw -3000 → 3000 rpm displayed
+        s = _make(YarboLeftBladeRpmSensor, self._data(-3000))
+        assert s.native_value == 3000.0
+
+    def test_positive_rpm_unchanged(self):
+        s = _make(YarboLeftBladeRpmSensor, self._data(3000))
+        assert s.native_value == 3000.0
+
+    def test_zero_rpm(self):
+        s = _make(YarboLeftBladeRpmSensor, self._data(0))
+        assert s.native_value == 0.0
+
+    def test_direction_ccw_when_negative(self):
+        s = _make(YarboLeftBladeRpmSensor, self._data(-3000))
+        assert s.extra_state_attributes.get("direction") == "CCW"
+
+    def test_direction_cw_when_positive(self):
+        s = _make(YarboLeftBladeRpmSensor, self._data(3000))
+        assert s.extra_state_attributes.get("direction") == "CW"
+
+    def test_direction_cw_when_zero(self):
+        s = _make(YarboLeftBladeRpmSensor, self._data(0))
+        assert s.extra_state_attributes.get("direction") == "CW"
+
+    def test_missing_data_returns_none_and_empty_attrs(self):
+        s = _make(YarboLeftBladeRpmSensor, {})
+        assert s.native_value is None
+        assert s.extra_state_attributes == {}
+
+    def test_native_unit_is_rpm(self):
+        s = _make(YarboLeftBladeRpmSensor, {})
+        assert s.native_unit_of_measurement == "rpm"

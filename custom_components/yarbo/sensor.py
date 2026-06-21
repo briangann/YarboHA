@@ -872,11 +872,12 @@ class YarboLeftBladePowerSensor(_YarboMowerBladeSensor):
 
     @property
     def native_value(self) -> float | None:
-        # P = V × I. Current is fixed-point (÷100 → A); voltage may arrive as mV (÷1000).
+        # P = V × |I|. Current may be negative (CCW direction); watts are always positive.
+        # Current is fixed-point (÷100 → A); voltage may arrive as mV (÷1000).
         val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
         if not isinstance(val, (int, float)):
             return None
-        current_a = float(val) / 100
+        current_a = abs(float(val) / 100)
         voltage = self._data().get("BatteryMSG", {}).get("voltage")
         if not isinstance(voltage, (int, float)):
             return None
@@ -893,6 +894,19 @@ class YarboLeftBladeRpmSensor(_YarboMowerBladeSensor):
     _unique_id_suffix = "left_blade_rpm"
     _msg_key = "mower_head_info03"
     _mqtt_key = "left_blade_motor_rpm"
+
+    @property
+    def native_value(self) -> float | None:
+        # Left blade counter-rotates (negative = CCW). Return magnitude for display.
+        val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
+        return round(abs(float(val)), 3) if isinstance(val, (int, float)) else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
+        if not isinstance(val, (int, float)):
+            return {}
+        return {"direction": "CCW" if float(val) < 0 else "CW"}
 
 
 class YarboLeftBladeSpeedSensor(_YarboMowerBladeSensor):
