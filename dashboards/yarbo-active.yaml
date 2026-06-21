@@ -141,7 +141,7 @@ views:
           - type: custom:canvas-gauge-card
             entity: sensor.<DEVICE_SN>_left_blade_rpm
             gauge:
-              type: RadialGauge
+              type: radial-gauge
               title: Left Blade RPM
               units: RPM
               minValue: 0
@@ -191,7 +191,7 @@ views:
           - type: custom:canvas-gauge-card
             entity: sensor.<DEVICE_SN>_right_blade_rpm
             gauge:
-              type: RadialGauge
+              type: radial-gauge
               title: Right Blade RPM
               units: RPM
               minValue: 0
