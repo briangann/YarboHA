@@ -186,6 +186,8 @@ async def async_setup_entry(
                 # EletricMSG
                 YarboLeftWheelCurrentSensor(coordinator, device),
                 YarboRightWheelCurrentSensor(coordinator, device),
+                YarboLeftWheelMotorPowerSensor(coordinator, device),
+                YarboRightWheelMotorPowerSensor(coordinator, device),
                 YarboBrushlessMotorCurrentSensor(coordinator, device),
                 YarboPushPodCurrentSensor(coordinator, device),
                 YarboChuteSteeringCurrentSensor(
@@ -696,6 +698,56 @@ class YarboRightWheelCurrentSensor(_YarboElectricSensor):
     _attr_device_class = SensorDeviceClass.CURRENT
     _unique_id_suffix = "right_wheel_current"
     _mqtt_key = "rwheel_current"
+
+
+class YarboLeftWheelMotorPowerSensor(_YarboElectricSensor):
+    _attr_name = "Left Wheel Motor Power"
+    _attr_icon = "mdi:lightning-bolt"
+    _attr_native_unit_of_measurement = "W"
+    _attr_device_class = SensorDeviceClass.POWER
+    _unique_id_suffix = "left_wheel_motor_power"
+    _mqtt_key = "lwheel_current"
+
+    @property
+    def native_value(self) -> float | None:
+        # P = V × |I|. Track motors reverse for turning; watts are always positive.
+        # Wheel current is already in amps (no fixed-point scaling unlike blade motors).
+        val = (self._data().get("EletricMSG") or {}).get(self._mqtt_key)
+        if not isinstance(val, (int, float)):
+            return None
+        current_a = abs(float(val))
+        voltage = self._data().get("BatteryMSG", {}).get("voltage")
+        if not isinstance(voltage, (int, float)):
+            return None
+        voltage_v = (
+            float(voltage) / 1000 if abs(float(voltage)) > 1000 else float(voltage)
+        )
+        return round(voltage_v * current_a, 2)
+
+
+class YarboRightWheelMotorPowerSensor(_YarboElectricSensor):
+    _attr_name = "Right Wheel Motor Power"
+    _attr_icon = "mdi:lightning-bolt"
+    _attr_native_unit_of_measurement = "W"
+    _attr_device_class = SensorDeviceClass.POWER
+    _unique_id_suffix = "right_wheel_motor_power"
+    _mqtt_key = "rwheel_current"
+
+    @property
+    def native_value(self) -> float | None:
+        # P = V × |I|. Track motors reverse for turning; watts are always positive.
+        # Wheel current is already in amps (no fixed-point scaling unlike blade motors).
+        val = (self._data().get("EletricMSG") or {}).get(self._mqtt_key)
+        if not isinstance(val, (int, float)):
+            return None
+        current_a = abs(float(val))
+        voltage = self._data().get("BatteryMSG", {}).get("voltage")
+        if not isinstance(voltage, (int, float)):
+            return None
+        voltage_v = (
+            float(voltage) / 1000 if abs(float(voltage)) > 1000 else float(voltage)
+        )
+        return round(voltage_v * current_a, 2)
 
 
 class YarboBrushlessMotorCurrentSensor(_YarboElectricSensor):
