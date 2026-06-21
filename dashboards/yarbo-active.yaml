@@ -148,7 +148,7 @@ views:
               maxValue: 4000
               majorTicks: ["0","1000","2000","2800","2900","3000","3100","3500","4000"]
               highlights:
-                - from: 0
+                - from: 200
                   to: 2800
                   color: rgba(255,0,0,0.4)
                 - from: 2800
@@ -201,7 +201,7 @@ views:
               maxValue: 4000
               majorTicks: ["0","1000","2000","2800","2900","3000","3100","3500","4000"]
               highlights:
-                - from: 0
+                - from: 200
                   to: 2800
                   color: rgba(255,0,0,0.4)
                 - from: 2800
