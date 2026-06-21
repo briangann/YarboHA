@@ -123,9 +123,13 @@ views:
           grid-column: span 2
         entities:
           - entity: sensor.<DEVICE_SN>_left_wheel_current
-            name: L Track Power
+            name: L Track A
+          - entity: sensor.<DEVICE_SN>_left_wheel_motor_power
+            name: L Track W
           - entity: sensor.<DEVICE_SN>_right_wheel_current
-            name: R Track Power
+            name: R Track A
+          - entity: sensor.<DEVICE_SN>_right_wheel_motor_power
+            name: R Track W
           - entity: sensor.<DEVICE_SN>_brushless_motor_current
             name: Head Actuator
           - entity: sensor.<DEVICE_SN>_odometry_left
