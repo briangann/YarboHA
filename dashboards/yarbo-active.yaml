@@ -123,9 +123,13 @@ views:
           grid-column: span 2
         entities:
           - entity: sensor.<DEVICE_SN>_left_wheel_current
-            name: L Track Power
+            name: L Track A
+          - entity: sensor.<DEVICE_SN>_left_wheel_motor_power
+            name: L Track W
           - entity: sensor.<DEVICE_SN>_right_wheel_current
-            name: R Track Power
+            name: R Track A
+          - entity: sensor.<DEVICE_SN>_right_wheel_motor_power
+            name: R Track W
           - entity: sensor.<DEVICE_SN>_brushless_motor_current
             name: Head Actuator
           - entity: sensor.<DEVICE_SN>_odometry_left
@@ -135,22 +139,109 @@ views:
 
       # Note: blade sensors are disabled by default.
       # Enable in Settings → Devices → Yarbo → your device → entities.
-      - type: glance
-        title: Left Blade
-        entities:
-          - entity: sensor.<DEVICE_SN>_left_blade_speed
-            name: Speed
-          - entity: sensor.<DEVICE_SN>_left_blade_current
-            name: Current
-          - entity: sensor.<DEVICE_SN>_left_blade_temperature
-            name: Temp
+      # Requires HACS: custom:canvas-gauge-card
+      - type: vertical-stack
+        cards:
+          - type: custom:canvas-gauge-card
+            entity: sensor.<DEVICE_SN>_left_blade_rpm
+            gauge:
+              type: radial-gauge
+              title: Left Blade RPM
+              units: RPM
+              minValue: 0
+              maxValue: 4000
+              majorTicks: ["0","1000","2000","2800","2900","3000","3100","3500","4000"]
+              highlights:
+                - from: 200
+                  to: 2800
+                  color: rgba(255,0,0,0.4)
+                - from: 2800
+                  to: 2900
+                  color: rgba(255,165,0,0.5)
+                - from: 2900
+                  to: 3100
+                  color: rgba(0,200,0,0.4)
+                - from: 3100
+                  to: 4000
+                  color: rgba(100,100,100,0.2)
+              colorPlate: "#1a1a1a"
+              colorNeedle: "#ffffff"
+              colorNeedleEnd: "#ff4444"
+              colorMajorTicks: "#888"
+              colorMinorTicks: "#555"
+              colorNumbers: "#aaa"
+              colorTitle: "#ccc"
+              colorUnits: "#ccc"
+              borderShadowWidth: 0
+              borders: false
+              needleType: arrow
+              needleWidth: 2
+              animationDuration: 500
+              animationRule: linear
+          - type: glance
+            show_name: true
+            show_icon: false
+            entities:
+              - entity: sensor.<DEVICE_SN>_left_blade_rpm
+                name: RPM
+              - entity: sensor.<DEVICE_SN>_left_blade_speed
+                name: Speed %
+              - entity: sensor.<DEVICE_SN>_left_blade_current
+                name: Current
+              - entity: sensor.<DEVICE_SN>_left_blade_power
+                name: Power
+              - entity: sensor.<DEVICE_SN>_left_blade_temperature
+                name: Temp
 
-      - type: glance
-        title: Right Blade
-        entities:
-          - entity: sensor.<DEVICE_SN>_right_blade_speed
-            name: Speed
-          - entity: sensor.<DEVICE_SN>_right_blade_current
-            name: Current
-          - entity: sensor.<DEVICE_SN>_right_blade_temperature
-            name: Temp
+      - type: vertical-stack
+        cards:
+          - type: custom:canvas-gauge-card
+            entity: sensor.<DEVICE_SN>_right_blade_rpm
+            gauge:
+              type: radial-gauge
+              title: Right Blade RPM
+              units: RPM
+              minValue: 0
+              maxValue: 4000
+              majorTicks: ["0","1000","2000","2800","2900","3000","3100","3500","4000"]
+              highlights:
+                - from: 200
+                  to: 2800
+                  color: rgba(255,0,0,0.4)
+                - from: 2800
+                  to: 2900
+                  color: rgba(255,165,0,0.5)
+                - from: 2900
+                  to: 3100
+                  color: rgba(0,200,0,0.4)
+                - from: 3100
+                  to: 4000
+                  color: rgba(100,100,100,0.2)
+              colorPlate: "#1a1a1a"
+              colorNeedle: "#ffffff"
+              colorNeedleEnd: "#ff4444"
+              colorMajorTicks: "#888"
+              colorMinorTicks: "#555"
+              colorNumbers: "#aaa"
+              colorTitle: "#ccc"
+              colorUnits: "#ccc"
+              borderShadowWidth: 0
+              borders: false
+              needleType: arrow
+              needleWidth: 2
+              animationDuration: 500
+              animationRule: linear
+          - type: glance
+            show_name: true
+            show_icon: false
+            entities:
+              - entity: sensor.<DEVICE_SN>_right_blade_rpm
+                name: RPM
+              - entity: sensor.<DEVICE_SN>_right_blade_speed
+                name: Speed %
+              - entity: sensor.<DEVICE_SN>_right_blade_current
+                name: Current
+              - entity: sensor.<DEVICE_SN>_right_blade_power
+                name: Power
+              - entity: sensor.<DEVICE_SN>_right_blade_temperature
+                name: Temp
