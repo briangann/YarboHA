@@ -853,6 +853,14 @@ class _YarboMowerBladeSensor(_YarboRawSensorBase):
         val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
         return round(float(val), 3) if isinstance(val, (int, float)) else None
 
+    def _blade_idle(self) -> bool:
+        data = self._data()
+        blade = data.get(self._msg_key) or {}
+        return bool(
+            blade.get(self._mqtt_key.replace("_current", "_rpm")) == 0
+            or blade.get(self._mqtt_key.replace("_current", "_speed")) == 0
+        )
+
 
 # Middle blade (mower_head_info02)
 # TODO(yarbo-questions Q3): Confirm whether mower_head_info02 belongs to the snow blower
@@ -936,6 +944,10 @@ class YarboLeftBladeCurrentSensor(_YarboMowerBladeSensor):
 
     @property
     def native_value(self) -> float | None:
+        rpm = (self._data().get(self._msg_key) or {}).get("left_blade_motor_rpm")
+        speed = (self._data().get(self._msg_key) or {}).get("left_blade_motor_speed")
+        if rpm == 0 or speed == 0:
+            return 0.0
         # Firmware encodes current as a fixed-point integer (1 unit = 0.01 A).
         val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
         return round(float(val) / 100, 3) if isinstance(val, (int, float)) else None
@@ -952,6 +964,10 @@ class YarboLeftBladePowerSensor(_YarboMowerBladeSensor):
 
     @property
     def native_value(self) -> float | None:
+        rpm = (self._data().get(self._msg_key) or {}).get("left_blade_motor_rpm")
+        speed = (self._data().get(self._msg_key) or {}).get("left_blade_motor_speed")
+        if rpm == 0 or speed == 0:
+            return 0.0
         # P = V × |I|. Current may be negative (CCW direction); watts are always positive.
         # Current is fixed-point (÷100 → A); voltage may arrive as mV (÷1000).
         val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
@@ -1046,6 +1062,10 @@ class YarboRightBladeCurrentSensor(_YarboMowerBladeSensor):
 
     @property
     def native_value(self) -> float | None:
+        rpm = (self._data().get(self._msg_key) or {}).get("right_blade_motor_rpm")
+        speed = (self._data().get(self._msg_key) or {}).get("right_blade_motor_speed")
+        if rpm == 0 or speed == 0:
+            return 0.0
         # Firmware encodes current as a fixed-point integer (1 unit = 0.01 A).
         val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
         return round(float(val) / 100, 3) if isinstance(val, (int, float)) else None
@@ -1062,6 +1082,10 @@ class YarboRightBladePowerSensor(_YarboMowerBladeSensor):
 
     @property
     def native_value(self) -> float | None:
+        rpm = (self._data().get(self._msg_key) or {}).get("right_blade_motor_rpm")
+        speed = (self._data().get(self._msg_key) or {}).get("right_blade_motor_speed")
+        if rpm == 0 or speed == 0:
+            return 0.0
         # P = V × I. Current is fixed-point (÷100 → A); voltage may arrive as mV (÷1000).
         val = (self._data().get(self._msg_key) or {}).get(self._mqtt_key)
         if not isinstance(val, (int, float)):
@@ -1128,7 +1152,7 @@ class YarboRightBladeOverCurrentSensor(_YarboMowerBladeSensor):
     _mqtt_key = "right_blade_motor_over_current_info"
 
 
-# Lift motor (mower_head_info01 extras — already has rain_sensor via SDK)
+# Lift motor (head_info01)
 
 
 class YarboLiftMotorCurrentSensor(_YarboMowerBladeSensor):
@@ -1143,7 +1167,7 @@ class YarboLiftMotorCurrentSensor(_YarboMowerBladeSensor):
 
 class YarboLiftMotorPlaceSensor(_YarboMowerBladeSensor):
     _attr_name = "Lift Motor Place"
-    _attr_icon = "mdi:arrow-up-down"
+    _attr_icon = "mdi:elevator"
     _unique_id_suffix = "lift_motor_place"
     _msg_key = "mower_head_info01"
     _mqtt_key = "lift_motor_place"
@@ -1151,7 +1175,7 @@ class YarboLiftMotorPlaceSensor(_YarboMowerBladeSensor):
 
 class YarboRaiseSensorSensor(_YarboMowerBladeSensor):
     _attr_name = "Raise Sensor"
-    _attr_icon = "mdi:arrow-up-bold"
+    _attr_icon = "mdi:elevator"
     _unique_id_suffix = "raise_sensor"
     _msg_key = "mower_head_info01"
     _mqtt_key = "raise_sensor"

@@ -74,3 +74,11 @@ Likely noisy metrics, based on the code paths and sensors exposed in `custom_com
    - `Right Wheel Motor Power`
    - when `Speed == 0` and `StateMSG.activity == "Not Started"`, these are forced to `0`
    - this keeps dashboard idle readings clean without changing any moving-state behavior
+
+13. Blade metrics
+   - `Left Blade Current`
+   - `Right Blade Current`
+   - `Left Blade Power`
+   - `Right Blade Power`
+   - if blade `rpm == 0` or blade `speed == 0`, these should read `0`
+   - this should suppress idle bleed-through the same way as the track metrics
