@@ -6,12 +6,27 @@ What's new in each release of Yarbo.
 
 ## [Unreleased]
 
-### Added
-- **Monitoring dashboard** — `dashboards/yarbo-monitoring.yaml`: stat chips (online, battery, RTK signal, HaLow RSSI), GeoJSON map via `ha-map-card` (work zones, no-go zones, plan path trace, robot position), plan progress, plan details, time/area stats, fault indicators.
-- `dashboards/generate.py` — CLI script: `python3 dashboards/generate.py <SN>` produces ready-to-paste YAML with the device serial number substituted. Accepts `-o <file>` to write to a file.
-- `dashboards/README.md` — setup instructions: install `ha-map-card` via HACS, enable the `plan_path` entity, run `generate.py`, import via HA raw configuration editor.
+---
+
+## [0.5.3] - 2026-07-12
+
+### Changed
+- **Charge and idle normalization** — charging power now drops values outside the observed physical envelope (±800 W), wireless recharge voltage/current are normalized from fixed-point raw values, and idle left/right track and blade current/power sensors now report `0` when the machine is stationary.
 
 ---
+
+## [0.5.2] - 2026-06-13
+
+Regression fixes and feature restorations on top of the v0.5.1 upstream sync.
+
+### Fixed
+- **Device tracker recorder spam** — restored position dedup cache so stationary devices stop writing GPS rows every few seconds.
+- **Map sensor dedup** — replaced nondeterministic dict `repr()` comparison with stable JSON serialization.
+- **Wireless charging precondition** — removed the incorrect plan-start block while wireless-charging undocks automatically.
+- **Plan select reflection** — restored `plan_feedback` MQTT subscription and app-started plan reflection.
+- **Nogo-zone service** — restored the service handler and coordinator helper.
+- **Online sensor telemetry** — restored the raw telemetry attributes on the online sensor.
+- **Fault sensors** — restored the raw fault binary sensors.
 
 ## [0.5.0] - 2026-06-04
 
