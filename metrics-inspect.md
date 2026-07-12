@@ -64,5 +64,13 @@ Likely noisy metrics, based on the code paths and sensors exposed in `custom_com
    - `Wireless Charge Voltage`
    - `Wireless Charge Current`
    - live samples showed `4202.0 V` / `4186.0 V` and `51 A` / `53 A`, which is not physically plausible if interpreted literally
-   - integration now normalizes fixed-point values by dividing by `1000` when the raw number is > 1000, and `charging_power` now drops values outside `±800 W`
+   - integration now normalizes fixed-point values by dividing by `1000` when the raw number is > 1000, and `charging_power` drops values outside `±800 W`
    - keep inspecting these against raw MQTT payloads before adding more filters
+
+12. Idle track metrics
+   - `Left Wheel Current`
+   - `Right Wheel Current`
+   - `Left Wheel Motor Power`
+   - `Right Wheel Motor Power`
+   - when `Speed == 0` and `StateMSG.activity == "Not Started"`, these are forced to `0`
+   - this keeps dashboard idle readings clean without changing any moving-state behavior

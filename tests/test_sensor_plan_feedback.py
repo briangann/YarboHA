@@ -8,6 +8,10 @@ from unittest.mock import MagicMock
 
 from custom_components.yarbo.sensor import (
     YarboConfigSensor,
+    YarboLeftWheelCurrentSensor,
+    YarboLeftWheelMotorPowerSensor,
+    YarboRightWheelCurrentSensor,
+    YarboRightWheelMotorPowerSensor,
     YarboWirelessChargeCurrentSensor,
     YarboWirelessChargeVoltageSensor,
 )
@@ -288,3 +292,33 @@ class TestWirelessRecharge:
         coord = _make_coordinator(data={"wireless_recharge": {"output_current": 51}})
         sensor = YarboWirelessChargeCurrentSensor(coord, _make_device())
         assert sensor.native_value == 51.0
+
+
+# ---------------------------------------------------------------------------
+# idle wheel normalization
+# ---------------------------------------------------------------------------
+
+
+class TestIdleWheelNormalization:
+    def _make(self, cls, current):
+        coord = _make_coordinator(
+            data={
+                "Speed": 0,
+                "StateMSG": {"activity": "Not Started"},
+                "BatteryMSG": {"voltage": 41700},
+                "EletricMSG": {"lwheel_current": current, "rwheel_current": current},
+            }
+        )
+        return cls(coord, _make_device())
+
+    def test_left_wheel_current_zeros_when_idle(self):
+        assert self._make(YarboLeftWheelCurrentSensor, 0.032).native_value == 0.0
+
+    def test_right_wheel_current_zeros_when_idle(self):
+        assert self._make(YarboRightWheelCurrentSensor, 0.024).native_value == 0.0
+
+    def test_left_wheel_power_zeros_when_idle(self):
+        assert self._make(YarboLeftWheelMotorPowerSensor, 0.032).native_value == 0.0
+
+    def test_right_wheel_power_zeros_when_idle(self):
+        assert self._make(YarboRightWheelMotorPowerSensor, 0.024).native_value == 0.0

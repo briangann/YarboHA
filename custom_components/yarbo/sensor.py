@@ -690,6 +690,15 @@ class YarboLeftWheelCurrentSensor(_YarboElectricSensor):
     _unique_id_suffix = "left_wheel_current"
     _mqtt_key = "lwheel_current"
 
+    @property
+    def native_value(self) -> float | None:
+        if (
+            self._data().get("Speed") == 0
+            and (self._data().get("StateMSG") or {}).get("activity") == "Not Started"
+        ):
+            return 0.0
+        return super().native_value
+
 
 class YarboRightWheelCurrentSensor(_YarboElectricSensor):
     _attr_name = "Right Wheel Current"
@@ -698,6 +707,15 @@ class YarboRightWheelCurrentSensor(_YarboElectricSensor):
     _attr_device_class = SensorDeviceClass.CURRENT
     _unique_id_suffix = "right_wheel_current"
     _mqtt_key = "rwheel_current"
+
+    @property
+    def native_value(self) -> float | None:
+        if (
+            self._data().get("Speed") == 0
+            and (self._data().get("StateMSG") or {}).get("activity") == "Not Started"
+        ):
+            return 0.0
+        return super().native_value
 
 
 class YarboLeftWheelMotorPowerSensor(_YarboElectricSensor):
@@ -710,6 +728,11 @@ class YarboLeftWheelMotorPowerSensor(_YarboElectricSensor):
 
     @property
     def native_value(self) -> float | None:
+        if (
+            self._data().get("Speed") == 0
+            and (self._data().get("StateMSG") or {}).get("activity") == "Not Started"
+        ):
+            return 0.0
         # P = V × |I|. Track motors reverse for turning; watts are always positive.
         # Wheel current is already in amps (no fixed-point scaling unlike blade motors).
         val = (self._data().get("EletricMSG") or {}).get(self._mqtt_key)
@@ -735,6 +758,11 @@ class YarboRightWheelMotorPowerSensor(_YarboElectricSensor):
 
     @property
     def native_value(self) -> float | None:
+        if (
+            self._data().get("Speed") == 0
+            and (self._data().get("StateMSG") or {}).get("activity") == "Not Started"
+        ):
+            return 0.0
         # P = V × |I|. Track motors reverse for turning; watts are always positive.
         # Wheel current is already in amps (no fixed-point scaling unlike blade motors).
         val = (self._data().get("EletricMSG") or {}).get(self._mqtt_key)
