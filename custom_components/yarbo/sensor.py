@@ -1229,7 +1229,13 @@ class _YarboWirelessRechargeSensor(_YarboRawSensorBase):
     @property
     def native_value(self) -> float | None:
         val = (self._data().get("wireless_recharge") or {}).get(self._mqtt_key)
-        return round(float(val), 3) if isinstance(val, (int, float)) else None
+        if not isinstance(val, (int, float)):
+            return None
+        return (
+            round(float(val) / 1000, 3)
+            if abs(float(val)) > 1000
+            else round(float(val), 3)
+        )
 
 
 class YarboWirelessChargeVoltageSensor(_YarboWirelessRechargeSensor):
@@ -1575,7 +1581,8 @@ class YarboConfigSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEnt
                 voltage = voltage / 1000
             if abs(current) > 1000:
                 current = current / 1000
-            return round(voltage * current, 2)
+            power = round(voltage * current, 2)
+            return power if abs(power) <= 800 else None
         if self._field_def.custom_extractor == "rtk_signal":
             from yarbo_robot_sdk.device_helpers import extract_field
 

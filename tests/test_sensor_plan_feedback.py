@@ -6,7 +6,11 @@ volume_scale, rtk_signal, charging_power, and network_priority.
 
 from unittest.mock import MagicMock
 
-from custom_components.yarbo.sensor import YarboConfigSensor
+from custom_components.yarbo.sensor import (
+    YarboConfigSensor,
+    YarboWirelessChargeCurrentSensor,
+    YarboWirelessChargeVoltageSensor,
+)
 
 
 def _make_coordinator(sn="SN001", data=None):
@@ -244,6 +248,20 @@ class TestChargingPower:
         # 12000 mV → 12 V, 2000 mA → 2 A → 24W
         assert self._make(12000, 2000).native_value == 24.0
 
+    def test_slow_charge_threshold_kept(self):
+        # Around the observed slow-charge range.
+        assert self._make(12, 8).native_value == 96.0
+
+    def test_fast_charge_threshold_kept(self):
+        # Around the observed fast-charge range.
+        assert self._make(12, 50).native_value == 600.0
+
+    def test_over_limit_positive_returns_none(self):
+        assert self._make(12, 67).native_value is None
+
+    def test_over_limit_negative_returns_none(self):
+        assert self._make(12, -67).native_value is None
+
     def test_missing_voltage_returns_none(self):
         coord = _make_coordinator(data={"BatteryMSG": {"current": 2}})
         fd = _make_field_def(custom_extractor="charging_power")
@@ -253,3 +271,20 @@ class TestChargingPower:
         coord = _make_coordinator(data={"BatteryMSG": {"voltage": 12}})
         fd = _make_field_def(custom_extractor="charging_power")
         assert _sensor(coord, fd).native_value is None
+
+
+# ---------------------------------------------------------------------------
+# wireless_recharge — raw fixed-point normalization
+# ---------------------------------------------------------------------------
+
+
+class TestWirelessRecharge:
+    def test_voltage_normalizes_millivolts(self):
+        coord = _make_coordinator(data={"wireless_recharge": {"output_voltage": 4186}})
+        sensor = YarboWirelessChargeVoltageSensor(coord, _make_device())
+        assert sensor.native_value == 4.186
+
+    def test_current_kept_as_is_for_small_values(self):
+        coord = _make_coordinator(data={"wireless_recharge": {"output_current": 51}})
+        sensor = YarboWirelessChargeCurrentSensor(coord, _make_device())
+        assert sensor.native_value == 51.0
