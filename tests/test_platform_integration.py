@@ -103,7 +103,7 @@ async def test_odometry_totals_registered_in_state_machine(hass: HomeAssistant):
 
 
 @pytest.mark.asyncio
-async def test_yarbo_odometry_entity_count_is_8(hass: HomeAssistant):
+async def test_yarbo_odometry_entity_count_is_12(hass: HomeAssistant):
     """After setup, all odometry entities are registered."""
     await _setup_entry(hass)
     registry = er.async_get(hass)
@@ -112,7 +112,7 @@ async def test_yarbo_odometry_entity_count_is_8(hass: HomeAssistant):
         for entity in registry.entities.values()
         if entity.platform == "yarbo" and "odometry" in entity.unique_id
     ]
-    assert len(odometry) == 8
+    assert len(odometry) == 12
 
 
 @pytest.mark.asyncio

@@ -159,9 +159,13 @@ async def async_setup_entry(
         entities.append(YarboOdometryForwardLeftSensor(coordinator, device))
         entities.append(YarboOdometryReverseLeftSensor(coordinator, device))
         entities.append(YarboOdometryRightSensor(coordinator, device))
+        entities.append(YarboOdometryForwardRightSensor(coordinator, device))
+        entities.append(YarboOdometryReverseRightSensor(coordinator, device))
         entities.append(YarboOdometryTotalLeftSensor(coordinator, device))
         entities.append(YarboOdometryTotalForwardLeftSensor(coordinator, device))
         entities.append(YarboOdometryTotalReverseLeftSensor(coordinator, device))
+        entities.append(YarboOdometryTotalForwardRightSensor(coordinator, device))
+        entities.append(YarboOdometryTotalReverseRightSensor(coordinator, device))
         entities.append(YarboOdometryTotalRightSensor(coordinator, device))
         entities.append(YarboOdomConfidenceSensor(coordinator, device))
         entities.append(YarboChuteSensor(coordinator, device))  # Snow Blower head only
@@ -511,6 +515,42 @@ class YarboOdometryTotalReverseLeftSensor(_YarboOdometryTotalSensor):
     _attr_name = "Odometry Total Reverse Left"
     _unique_id_suffix = "odometry_total_reverse_left"
     _mqtt_key = "dist_left"
+    _delta_direction = "reverse"
+
+
+class YarboOdometryForwardRightSensor(_YarboOdometryTotalSensor):
+    """Forward-only accumulated right wheel distance."""
+
+    _attr_name = "Odometry Forward Right"
+    _unique_id_suffix = "odometry_forward_right"
+    _mqtt_key = "dist_right"
+    _delta_direction = "forward"
+
+
+class YarboOdometryReverseRightSensor(_YarboOdometryTotalSensor):
+    """Reverse-only accumulated right wheel distance."""
+
+    _attr_name = "Odometry Reverse Right"
+    _unique_id_suffix = "odometry_reverse_right"
+    _mqtt_key = "dist_right"
+    _delta_direction = "reverse"
+
+
+class YarboOdometryTotalForwardRightSensor(_YarboOdometryTotalSensor):
+    """Total accumulated forward right wheel distance."""
+
+    _attr_name = "Odometry Total Forward Right"
+    _unique_id_suffix = "odometry_total_forward_right"
+    _mqtt_key = "dist_right"
+    _delta_direction = "forward"
+
+
+class YarboOdometryTotalReverseRightSensor(_YarboOdometryTotalSensor):
+    """Total accumulated reverse right wheel distance."""
+
+    _attr_name = "Odometry Total Reverse Right"
+    _unique_id_suffix = "odometry_total_reverse_right"
+    _mqtt_key = "dist_right"
     _delta_direction = "reverse"
 
 

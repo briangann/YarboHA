@@ -62,7 +62,7 @@ All metric data arrives via MQTT push or is derived directly from MQTT push. The
 
 | Family | Entities | Notes |
 |---|---|---|
-| Wheel speed / odometry | `Speed`, `Odometry Left`, `Odometry Forward Left`, `Odometry Reverse Left`, `Odometry Right`, `Odometry Total Left`, `Odometry Total Forward Left`, `Odometry Total Reverse Left`, `Odometry Total Right`, `Positioning Confidence` | `Speed` averages left/right wheel speed; left odometry exposes raw signed direction plus derived forward/reverse/total accumulators. |
+| Wheel speed / odometry | `Speed`, `Odometry Left`, `Odometry Forward Left`, `Odometry Reverse Left`, `Odometry Right`, `Odometry Forward Right`, `Odometry Reverse Right`, `Odometry Total Left`, `Odometry Total Forward Left`, `Odometry Total Reverse Left`, `Odometry Total Right`, `Odometry Total Forward Right`, `Odometry Total Reverse Right`, `Positioning Confidence` | `Speed` averages left/right wheel speed; left and right odometry expose raw signed direction plus derived forward/reverse/total accumulators. |
 | Proximity / chute | `Proximity Left`, `Proximity Center`, `Proximity Right`, `Chute Angle` | Proximity uses `9999` as no-obstacle sentinel. `Chute Angle` is snow-blower head only. |
 
 | Head gyro | `Head Gyro Pitch`, `Head Gyro Roll` | Disabled by default. |

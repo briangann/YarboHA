@@ -11,12 +11,17 @@ from custom_components.yarbo.sensor import (
     YarboGyroPitchSensor,
     YarboOdomConfidenceSensor,
     YarboOdometryForwardLeftSensor,
+    YarboOdometryForwardRightSensor,
     YarboOdometryLeftSensor,
     YarboOdometryReverseLeftSensor,
+    YarboOdometryReverseRightSensor,
     YarboOdometryRightSensor,
     YarboOdometryTotalForwardLeftSensor,
+    YarboOdometryTotalForwardRightSensor,
     YarboOdometryTotalLeftSensor,
     YarboOdometryTotalReverseLeftSensor,
+    YarboOdometryTotalReverseRightSensor,
+    YarboOdometryTotalRightSensor,
     YarboProximityCenterSensor,
     YarboProximityLeftSensor,
     YarboProximityRightSensor,
@@ -257,6 +262,132 @@ class TestYarboOdometryDerivedLeftSensors:
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# YarboOdometry derived right sensors
+# ---------------------------------------------------------------------------
+
+
+class TestYarboOdometryDerivedRightSensors:
+    def test_forward_sensor_primes_then_accumulates_positive_delta(self):
+        sensor = _make(
+            YarboOdometryForwardRightSensor, {"WheelSpeedMSG": {"dist_right": 10.0}}
+        )
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[0.0]),
+            patch.object(type(sensor), "async_write_ha_state") as mock_write,
+        ):
+            sensor._handle_coordinator_update()
+        mock_write.assert_not_called()
+        assert sensor.native_value == 0.0
+
+        sensor.coordinator.data[SN]["WheelSpeedMSG"]["dist_right"] = 10.3
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[1.0]),
+            patch.object(type(sensor), "async_write_ha_state") as mock_write,
+        ):
+            sensor._handle_coordinator_update()
+        mock_write.assert_called_once()
+        assert sensor.native_value == 0.3
+
+    def test_reverse_sensor_accumulates_negative_delta(self):
+        sensor = _make(
+            YarboOdometryReverseRightSensor, {"WheelSpeedMSG": {"dist_right": 10.3}}
+        )
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[0.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+
+        sensor.coordinator.data[SN]["WheelSpeedMSG"]["dist_right"] = 10.1
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[1.0]),
+            patch.object(type(sensor), "async_write_ha_state") as mock_write,
+        ):
+            sensor._handle_coordinator_update()
+        mock_write.assert_called_once()
+        assert sensor.native_value == 0.2
+
+    def test_total_forward_right_accumulates_positive_delta_only(self):
+        sensor = _make(
+            YarboOdometryTotalForwardRightSensor,
+            {"WheelSpeedMSG": {"dist_right": 10.0}},
+        )
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[0.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+
+        sensor.coordinator.data[SN]["WheelSpeedMSG"]["dist_right"] = 10.3
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[1.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+
+        sensor.coordinator.data[SN]["WheelSpeedMSG"]["dist_right"] = 10.1
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[2.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+
+        assert sensor.native_value == 0.3
+
+    def test_total_reverse_right_accumulates_negative_delta_only(self):
+        sensor = _make(
+            YarboOdometryTotalReverseRightSensor,
+            {"WheelSpeedMSG": {"dist_right": 10.3}},
+        )
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[0.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+
+        sensor.coordinator.data[SN]["WheelSpeedMSG"]["dist_right"] = 10.1
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[1.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+
+        sensor.coordinator.data[SN]["WheelSpeedMSG"]["dist_right"] = 10.4
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[2.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+
+        assert sensor.native_value == 0.2
+
+    def test_total_right_accumulates_both_directions(self):
+        sensor = _make(
+            YarboOdometryTotalRightSensor, {"WheelSpeedMSG": {"dist_right": 10.0}}
+        )
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[0.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+
+        sensor.coordinator.data[SN]["WheelSpeedMSG"]["dist_right"] = 10.3
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[1.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+
+        sensor.coordinator.data[SN]["WheelSpeedMSG"]["dist_right"] = 10.1
+        with (
+            patch("custom_components.yarbo.sensor.time.monotonic", side_effect=[2.0]),
+            patch.object(type(sensor), "async_write_ha_state"),
+        ):
+            sensor._handle_coordinator_update()
+        assert sensor.native_value == 0.5
+
+
 # YarboOdometryRightSensor
 # ---------------------------------------------------------------------------
 
