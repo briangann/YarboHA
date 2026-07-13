@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.yarbo.const import (
@@ -90,6 +91,28 @@ async def _setup_entry(hass: HomeAssistant) -> MockConfigEntry:
 # ---------------------------------------------------------------------------
 # Entity registration
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_odometry_totals_registered_in_state_machine(hass: HomeAssistant):
+    """After setup, the new total left odometry entities appear in hass.states."""
+    await _setup_entry(hass)
+
+    assert hass.states.get("sensor.yarbo_y1_odometry_total_forward_left") is not None
+    assert hass.states.get("sensor.yarbo_y1_odometry_total_reverse_left") is not None
+
+
+@pytest.mark.asyncio
+async def test_yarbo_odometry_entity_count_is_8(hass: HomeAssistant):
+    """After setup, all odometry entities are registered."""
+    await _setup_entry(hass)
+    registry = er.async_get(hass)
+    odometry = [
+        entity
+        for entity in registry.entities.values()
+        if entity.platform == "yarbo" and "odometry" in entity.unique_id
+    ]
+    assert len(odometry) == 8
 
 
 @pytest.mark.asyncio
