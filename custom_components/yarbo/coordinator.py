@@ -399,6 +399,13 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         parts = topic.split("/")
         if len(parts) >= 2:
             sn = parts[1]
+            if "WheelSpeedMSG" in data:
+                ws = data["WheelSpeedMSG"]
+                if not isinstance(ws, dict):
+                    _LOGGER.warning(
+                        "WheelSpeedMSG payload for %s is %s", sn, type(ws).__name__
+                    )
+
             if self.data is None:
                 self.data = {}
             if sn not in self.data:
