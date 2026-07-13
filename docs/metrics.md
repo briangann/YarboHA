@@ -292,18 +292,18 @@ All metric data arrives via MQTT push or is derived directly from MQTT push. The
 #### Odometry Left / Right
 | Property | Value |
 |---|---|
-| Entity ID pattern | `sensor.<sn>_odometry_left`, `sensor.<sn>_odometry_right` |
+| Entity ID pattern | `sensor.<sn>_odometry_left`, `sensor.<sn>_odometry_forward_left`, `sensor.<sn>_odometry_reverse_left`, `sensor.<sn>_odometry_right`, `sensor.<sn>_odometry_forward_right`, `sensor.<sn>_odometry_reverse_right` |
 | Source | `WheelSpeedMSG.dist_left`, `WheelSpeedMSG.dist_right` |
 | Unit | `m` |
-| Notes | Raw wheel odometry since power-on. |
+| Notes | Raw left/right wheel odometry since power-on. Left raw stays signed for direction visibility. |
 
-#### Odometry Total Left / Right
+#### Odometry Totals
 | Property | Value |
 |---|---|
-| Entity ID pattern | `sensor.<sn>_odometry_total_left`, `sensor.<sn>_odometry_total_right` |
+| Entity ID pattern | `sensor.<sn>_odometry_total_left`, `sensor.<sn>_odometry_total_forward_left`, `sensor.<sn>_odometry_total_reverse_left`, `sensor.<sn>_odometry_total_right`, `sensor.<sn>_odometry_total_forward_right`, `sensor.<sn>_odometry_total_reverse_right` |
 | Source | Raw odometry deltas accumulated across power cycles |
 | Unit | `m` |
-| Notes | Persisted totals. |
+| Notes | Totals accumulate valid deltas only. Forward totals add positive motion, reverse totals add negative motion as positive distance, and total sensors accumulate absolute valid deltas. |
 
 #### Positioning Confidence
 | Property | Value |
