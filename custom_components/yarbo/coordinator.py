@@ -177,11 +177,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     refresh_token,
                 )
             else:
-                await self.hass.async_add_executor_job(
-                    client.login,
-                    self.entry.data[CONF_EMAIL],
-                    self.entry.data[CONF_PASSWORD],
-                )
+                await self._async_login(client)
         except (AuthenticationError, TokenExpiredError) as err:
             raise ConfigEntryAuthFailed from err
 
@@ -366,6 +362,14 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     err,
                 )
 
+    async def _async_login(self, client: YarboClient) -> None:
+        """Log in fresh with the account credentials stored in the config entry."""
+        await self.hass.async_add_executor_job(
+            client.login,
+            self.entry.data[CONF_EMAIL],
+            self.entry.data[CONF_PASSWORD],
+        )
+
     async def async_force_relogin(self) -> None:
         """Force a fresh username/password login and MQTT reconnect.
 
@@ -378,11 +382,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         if client is None:
             raise HomeAssistantError("Cannot relogin: integration not set up")
         try:
-            await self.hass.async_add_executor_job(
-                client.login,
-                self.entry.data[CONF_EMAIL],
-                self.entry.data[CONF_PASSWORD],
-            )
+            await self._async_login(client)
         except (AuthenticationError, YarboSDKError) as err:
             raise HomeAssistantError(f"Relogin failed: {err}") from err
         await self.hass.async_add_executor_job(client.mqtt_disconnect)
