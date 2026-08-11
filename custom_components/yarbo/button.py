@@ -42,6 +42,7 @@ async def async_setup_entry(
                 entities.append(YarboConfigButton(coordinator, device, ctrl_def))
 
         # Data refresh buttons
+        entities.append(YarboForceReloginButton(coordinator, device))
         entities.append(YarboRefreshGpsRefButton(coordinator, device))
         entities.append(YarboRefreshMapDataButton(coordinator, device))
         entities.append(YarboRefreshDeviceMsgButton(coordinator, device))
@@ -159,6 +160,35 @@ class YarboConfigButton(CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEnt
 
 
 # ---- Data refresh buttons ----
+
+
+class YarboForceReloginButton(
+    CoordinatorEntity[YarboDataUpdateCoordinator], ButtonEntity
+):
+    """Button to force a fresh login and MQTT reconnect.
+
+    Unblocks the case where the MQTT broker rejects the restored session
+    (stale/expired refresh token) but REST calls still succeed, so HA's
+    normal reauth flow never triggers.
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Force Relogin"
+    _attr_icon = "mdi:account-key"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_force_relogin"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return _device_info(self._device)
+
+    async def async_press(self) -> None:
+        _LOGGER.info("Forcing relogin for %s", self._device.sn)
+        await self.coordinator.async_force_relogin()
 
 
 class YarboRefreshGpsRefButton(

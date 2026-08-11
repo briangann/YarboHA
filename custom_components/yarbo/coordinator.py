@@ -12,7 +12,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -199,7 +199,43 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         else:
             self.devices = all_devices
 
-        # Connect MQTT and subscribe to selected devices only
+        await self._async_connect_mqtt(client)
+
+        # Auto wake-up per the configured keep-awake policy. Restore persisted
+        # standby preferences first so a restart doesn't wake devices the user
+        # explicitly put to sleep. In "docked" mode no battery data has arrived
+        # yet, so the initial wake-up is skipped; the renewal timer picks the
+        # device up within one interval once charging status is known.
+        await self._async_restore_standby()
+        for device in self.devices:
+            self._user_standby.setdefault(device.sn, False)
+            if self._should_keep_awake(device.sn):
+                await self._async_send_wakeup(device.sn, device.type_id)
+
+        # Start heartbeat check timer (every 5s)
+        self._unsub_heartbeat_check = async_track_time_interval(
+            self.hass, self._async_check_heartbeats, HEARTBEAT_CHECK_INTERVAL
+        )
+
+        # Start wake-up renewal timer (every 4min)
+        self._unsub_wakeup_renewal = async_track_time_interval(
+            self.hass, self._async_renew_wakeup, WAKEUP_RENEWAL_INTERVAL
+        )
+
+        # Persist tokens (may have been refreshed during restore)
+        self._update_stored_tokens()
+
+        # Fetch initial per-device data in the background so setup returns fast.
+        # Each request can block up to its timeout when a device is offline;
+        # running them inline would stall (and risk cancelling) entry setup.
+        self.entry.async_create_background_task(
+            self.hass,
+            self._async_initial_data_fetch(),
+            name=f"{DOMAIN}_initial_fetch",
+        )
+
+    async def _async_connect_mqtt(self, client: YarboClient) -> None:
+        """Connect MQTT and subscribe to selected devices."""
         try:
             await self.hass.async_add_executor_job(client.mqtt_connect)
             for device in self.devices:
@@ -330,38 +366,28 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     err,
                 )
 
-        # Auto wake-up per the configured keep-awake policy. Restore persisted
-        # standby preferences first so a restart doesn't wake devices the user
-        # explicitly put to sleep. In "docked" mode no battery data has arrived
-        # yet, so the initial wake-up is skipped; the renewal timer picks the
-        # device up within one interval once charging status is known.
-        await self._async_restore_standby()
-        for device in self.devices:
-            self._user_standby.setdefault(device.sn, False)
-            if self._should_keep_awake(device.sn):
-                await self._async_send_wakeup(device.sn, device.type_id)
+    async def async_force_relogin(self) -> None:
+        """Force a fresh username/password login and MQTT reconnect.
 
-        # Start heartbeat check timer (every 5s)
-        self._unsub_heartbeat_check = async_track_time_interval(
-            self.hass, self._async_check_heartbeats, HEARTBEAT_CHECK_INTERVAL
-        )
-
-        # Start wake-up renewal timer (every 4min)
-        self._unsub_wakeup_renewal = async_track_time_interval(
-            self.hass, self._async_renew_wakeup, WAKEUP_RENEWAL_INTERVAL
-        )
-
-        # Persist tokens (may have been refreshed during restore)
+        Use when the MQTT broker rejects the restored session (e.g. the
+        stored refresh token itself expired) even though REST calls still
+        succeed — HA never triggers its normal reauth flow in that case
+        because ``restore_session``/``get_devices`` don't fail.
+        """
+        client = self._client
+        if client is None:
+            raise HomeAssistantError("Cannot relogin: integration not set up")
+        try:
+            await self.hass.async_add_executor_job(
+                client.login,
+                self.entry.data[CONF_EMAIL],
+                self.entry.data[CONF_PASSWORD],
+            )
+        except (AuthenticationError, YarboSDKError) as err:
+            raise HomeAssistantError(f"Relogin failed: {err}") from err
+        await self.hass.async_add_executor_job(client.mqtt_disconnect)
+        await self._async_connect_mqtt(client)
         self._update_stored_tokens()
-
-        # Fetch initial per-device data in the background so setup returns fast.
-        # Each request can block up to its timeout when a device is offline;
-        # running them inline would stall (and risk cancelling) entry setup.
-        self.entry.async_create_background_task(
-            self.hass,
-            self._async_initial_data_fetch(),
-            name=f"{DOMAIN}_initial_fetch",
-        )
 
     async def _async_initial_data_fetch(self) -> None:
         """Fetch initial snapshots for each device and publish to entities.
