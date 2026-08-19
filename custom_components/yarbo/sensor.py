@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 
+from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -143,14 +144,18 @@ async def async_setup_entry(
         # but they are essential for dashboard monitoring of plan execution.
         entities.append(YarboPlanPathSensor(coordinator, device))
         entities.append(YarboCurrentPlanSensor(coordinator, device))
+        entities.append(YarboCurrentPlanIdSensor(coordinator, device))
         entities.append(YarboCleanAreaSensor(coordinator, device))
         entities.append(YarboBatteryConsumptionSensor(coordinator, device))
         entities.append(YarboPlanProgressSensor(coordinator, device))
         entities.append(YarboRemainingAreaSensor(coordinator, device))
         entities.append(YarboTimeRemainingSensor(coordinator, device))
+        entities.append(YarboTimeRemainingSecondsSensor(coordinator, device))
         entities.append(YarboElapsedTimeSensor(coordinator, device))
+        entities.append(YarboElapsedTimeSecondsSensor(coordinator, device))
         entities.append(YarboTotalPlanAreaSensor(coordinator, device))
         entities.append(YarboTotalPlanTimeSensor(coordinator, device))
+        entities.append(YarboTotalPlanTimeSecondsSensor(coordinator, device))
 
         # keep — intentional: raw telemetry sensors restored from upstream removal (v0.4.8)
         # WheelSpeedMSG, ultrasonic_msg, RunningStatusMSG gyro/chute are not in SDK field defs.
@@ -1855,6 +1860,52 @@ class YarboCurrentPlanSensor(
         return None
 
 
+class YarboCurrentPlanIdSensor(
+    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
+):
+    """Numeric id of the currently running plan — for Prometheus export.
+
+    Prometheus drops non-numeric sensor states, so `Current Plan` (name) never
+    reaches it. This mirrors the same areaIds match but exposes the plan's
+    stable numeric id instead, mappable back to a name via Grafana value
+    mappings (name is also kept as an attribute for HA-side use).
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Current Plan Id"
+    _attr_icon = "mdi:clipboard-play-outline"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_current_plan_id"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return _plan_device_info(self._device)
+
+    def _running_plan(self) -> dict | None:
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        running_area_ids = set(pf.get("areaIds") or [])
+        if not running_area_ids:
+            return None
+        for plan in self.coordinator.plan_data.get(self._device.sn, []):
+            if set(plan.get("areaIds") or []) == running_area_ids:
+                return plan
+        return None
+
+    @property
+    def native_value(self) -> int | None:
+        plan = self._running_plan()
+        return plan.get("id") if plan is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        plan = self._running_plan()
+        return {"name": plan.get("name")} if plan is not None else {}
+
+
 class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
     """Actual cleaned area in the current run — unit follows HA unit system."""
 
@@ -2025,6 +2076,25 @@ class YarboTimeRemainingSensor(_YarboPlanFeedbackBase):
         return {"seconds": round(max(float(val), 0), 0)} if val is not None else {}
 
 
+class YarboTimeRemainingSecondsSensor(_YarboPlanFeedbackBase):
+    """Estimated time remaining in raw seconds — numeric, for Prometheus export."""
+
+    _attr_name = "Estimated Time Remaining Seconds"
+    _attr_icon = "mdi:timer-outline"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_time_remaining_seconds"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("leftTime")
+        return round(max(float(val), 0), 0) if val is not None else None
+
+
 class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
     """Elapsed plan time — displayed as Xh Ym Zs; raw seconds in attribute."""
 
@@ -2044,6 +2114,25 @@ class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
     def extra_state_attributes(self) -> dict:
         val = self._pf().get("duration")
         return {"seconds": round(float(val), 0)} if val is not None else {}
+
+
+class YarboElapsedTimeSecondsSensor(_YarboPlanFeedbackBase):
+    """Elapsed plan time in raw seconds — numeric, for Prometheus export."""
+
+    _attr_name = "Plan Elapsed Time Seconds"
+    _attr_icon = "mdi:timer"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_elapsed_time_seconds"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("duration")
+        return round(float(val), 0) if val is not None else None
 
 
 class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
@@ -2086,6 +2175,25 @@ class YarboTotalPlanTimeSensor(_YarboPlanFeedbackBase):
     def extra_state_attributes(self) -> dict:
         val = self._pf().get("totalTime")
         return {"seconds": round(float(val), 0)} if val is not None else {}
+
+
+class YarboTotalPlanTimeSecondsSensor(_YarboPlanFeedbackBase):
+    """Total estimated plan time in raw seconds — numeric, for Prometheus export."""
+
+    _attr_name = "Total Plan Time Seconds"
+    _attr_icon = "mdi:timer-outline"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_total_plan_time_seconds"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("totalTime")
+        return round(float(val), 0) if val is not None else None
 
 
 class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):

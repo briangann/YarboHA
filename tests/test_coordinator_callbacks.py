@@ -45,6 +45,8 @@ def _make_coordinator(device_data=None, devices=None):
     coord._device_msg_inflight = set()
     coord._wifi_loaded = set()
     coord._wifi_inflight = set()
+    coord._plans_loaded = set()
+    coord._plans_inflight = set()
     coord._standby_store = MagicMock()
     coord._map_store = MagicMock()
     coord._last_heartbeat = {}

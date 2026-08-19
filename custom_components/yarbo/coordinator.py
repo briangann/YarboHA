@@ -119,6 +119,8 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self._device_msg_loaded: set[str] = set()
         self._wifi_inflight: set[str] = set()
         self._wifi_loaded: set[str] = set()
+        self._plans_inflight: set[str] = set()
+        self._plans_loaded: set[str] = set()
         self._selected_plan: dict[str, int | None] = {}
         self._unsub_heartbeat_check: CALLBACK_TYPE | None = None
         self._unsub_wakeup_renewal: CALLBACK_TYPE | None = None
@@ -496,6 +498,16 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     self.async_refresh_wifi_info,
                     "refetch_wifi",
                 )
+            if (
+                came_online or sn not in self._plans_loaded
+            ) and sn not in self._plans_inflight:
+                _LOGGER.info("[heart_beat] sn=%s online → re-fetch plan list", sn)
+                self._schedule_refetch(
+                    sn,
+                    self._plans_inflight,
+                    self.async_refresh_plans,
+                    "refetch_plans",
+                )
 
             if was_online and prev_payload == data:
                 return  # No user-visible change; skip the entity refresh.
@@ -675,6 +687,11 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         """Fetch auto plan list for a device. Non-blocking on failure."""
         if self._client is None:
             return
+        # Dedupe concurrent fetches (startup fetch vs. an online-transition
+        # retry, or a mashed Refresh button) — same guard as DeviceMSG/Wi-Fi.
+        if sn in self._plans_inflight:
+            return
+        self._plans_inflight.add(sn)
         try:
             bound = self.bound_device(sn)
             if bound is not None:
@@ -687,7 +704,13 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 )
             plans = result.get("data", {}).get("data", [])
             self._plan_data[sn] = plans
+            self._plans_loaded.add(sn)
             _LOGGER.info("Plans for %s: %d plans loaded", sn, len(plans))
+            _LOGGER.debug(
+                "Plan id/name map for %s: %s",
+                sn,
+                {p.get("id"): p.get("name") for p in plans},
+            )
         except TimeoutError:
             _LOGGER.warning(
                 "Plan list request timed out for %s. "
@@ -696,6 +719,8 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             )
         except Exception as err:
             _LOGGER.warning("Failed to fetch plans for %s: %s", sn, err)
+        finally:
+            self._plans_inflight.discard(sn)
 
     async def async_refresh_plans(self, sn: str, type_id: str) -> None:
         """Re-fetch plan list and trigger entity update."""
