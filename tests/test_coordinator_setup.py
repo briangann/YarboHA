@@ -169,29 +169,6 @@ async def test_async_setup_all_devices_when_no_selection(hass: HomeAssistant):
 
 
 @pytest.mark.asyncio
-async def test_async_setup_mqtt_failure_is_non_fatal(hass: HomeAssistant):
-    """MQTT connect failure is logged as warning — setup completes."""
-    from yarbo_robot_sdk import YarboSDKError
-
-    entry = _make_entry(hass)
-    client = _mock_client()
-    client.mqtt_connect.side_effect = YarboSDKError("broker down")
-
-    with patch("custom_components.yarbo.coordinator.YarboClient", return_value=client):
-        with patch("custom_components.yarbo.coordinator.async_track_time_interval"):
-            coord = YarboDataUpdateCoordinator(hass, entry)
-            with patch.object(coord, "_async_restore_standby", new=AsyncMock()):
-                with patch.object(
-                    coord.entry,
-                    "async_create_background_task",
-                    side_effect=_close_background_task,
-                ):
-                    await coord.async_setup()
-
-    assert coord._client is client
-
-
-@pytest.mark.asyncio
 async def test_async_setup_auth_error_raises_config_entry_auth_failed(
     hass: HomeAssistant,
 ):

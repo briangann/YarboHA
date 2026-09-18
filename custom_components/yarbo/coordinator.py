@@ -12,10 +12,16 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
+from homeassistant.components.persistent_notification import (
+    async_create as async_create_notification,
+    async_dismiss as async_dismiss_notification,
+)
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
 from yarbo_robot_sdk import (
     AuthenticationError,
     TokenExpiredError,
@@ -23,7 +29,6 @@ from yarbo_robot_sdk import (
     YarboSDKError,
 )
 from yarbo_robot_sdk.device_helpers import convert_map_to_geojson
-
 from .const import (
     CONF_KEEP_AWAKE_MODE,
     CONF_SELECTED_DEVICES,
@@ -34,6 +39,10 @@ from .const import (
     KEEP_AWAKE_DOCKED,
     KEEP_AWAKE_OFF,
 )
+
+MQTT_AUTH_ISSUE_ID = "mqtt_not_authorized"
+MQTT_AUTH_NOTIFICATION_ID = "yarbo_mqtt_not_authorized"
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,6 +128,8 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self._device_msg_loaded: set[str] = set()
         self._wifi_inflight: set[str] = set()
         self._wifi_loaded: set[str] = set()
+        self._plans_inflight: set[str] = set()
+        self._plans_loaded: set[str] = set()
         self._selected_plan: dict[str, int | None] = {}
         self._unsub_heartbeat_check: CALLBACK_TYPE | None = None
         self._unsub_wakeup_renewal: CALLBACK_TYPE | None = None
@@ -137,6 +148,33 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         self._map_store.async_delay_save(
             lambda: {"map_data": self._map_data, "gps_refs": self._gps_refs},
             MAP_STORE_SAVE_DELAY,
+        )
+
+    def _async_clear_mqtt_auth_issue(self) -> None:
+        """Clear the MQTT auth repair issue and notification."""
+        ir.async_delete_issue(self.hass, DOMAIN, MQTT_AUTH_ISSUE_ID)
+        async_dismiss_notification(self.hass, MQTT_AUTH_NOTIFICATION_ID)
+
+    def _async_report_mqtt_auth_issue(self, err: Exception) -> None:
+        """Create a UI-visible issue when MQTT rejects the restored session."""
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            MQTT_AUTH_ISSUE_ID,
+            is_fixable=False,
+            is_persistent=True,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="mqtt_not_authorized",
+            translation_placeholders={"error": str(err)},
+        )
+        async_create_notification(
+            self.hass,
+            (
+                "Yarbo MQTT authentication failed. Open Repairs to fix it, "
+                "or use the Force Relogin button in the integration."
+            ),
+            title="Yarbo authentication problem",
+            notification_id=MQTT_AUTH_NOTIFICATION_ID,
         )
 
     async def _async_restore_maps(self) -> None:
@@ -177,11 +215,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     refresh_token,
                 )
             else:
-                await self.hass.async_add_executor_job(
-                    client.login,
-                    self.entry.data[CONF_EMAIL],
-                    self.entry.data[CONF_PASSWORD],
-                )
+                await self._async_login(client)
         except (AuthenticationError, TokenExpiredError) as err:
             raise ConfigEntryAuthFailed from err
 
@@ -199,9 +233,46 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         else:
             self.devices = all_devices
 
-        # Connect MQTT and subscribe to selected devices only
+        await self._async_connect_mqtt(client)
+
+        # Auto wake-up per the configured keep-awake policy. Restore persisted
+        # standby preferences first so a restart doesn't wake devices the user
+        # explicitly put to sleep. In "docked" mode no battery data has arrived
+        # yet, so the initial wake-up is skipped; the renewal timer picks the
+        # device up within one interval once charging status is known.
+        await self._async_restore_standby()
+        for device in self.devices:
+            self._user_standby.setdefault(device.sn, False)
+            if self._should_keep_awake(device.sn):
+                await self._async_send_wakeup(device.sn, device.type_id)
+
+        # Start heartbeat check timer (every 5s)
+        self._unsub_heartbeat_check = async_track_time_interval(
+            self.hass, self._async_check_heartbeats, HEARTBEAT_CHECK_INTERVAL
+        )
+
+        # Start wake-up renewal timer (every 4min)
+        self._unsub_wakeup_renewal = async_track_time_interval(
+            self.hass, self._async_renew_wakeup, WAKEUP_RENEWAL_INTERVAL
+        )
+
+        # Persist tokens (may have been refreshed during restore)
+        self._update_stored_tokens()
+
+        # Fetch initial per-device data in the background so setup returns fast.
+        # Each request can block up to its timeout when a device is offline;
+        # running them inline would stall (and risk cancelling) entry setup.
+        self.entry.async_create_background_task(
+            self.hass,
+            self._async_initial_data_fetch(),
+            name=f"{DOMAIN}_initial_fetch",
+        )
+
+    async def _async_connect_mqtt(self, client: YarboClient) -> None:
+        """Connect MQTT and subscribe to selected devices."""
         try:
             await self.hass.async_add_executor_job(client.mqtt_connect)
+            self._async_clear_mqtt_auth_issue()
             for device in self.devices:
                 _LOGGER.info(
                     "Subscribing MQTT for %s (type_id=%s)",
@@ -227,6 +298,12 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     )
         except YarboSDKError as err:
             _LOGGER.warning("MQTT connection failed: %s", err)
+            if "not authorized" in str(err).lower():
+                self._async_report_mqtt_auth_issue(err)
+                _LOGGER.warning(
+                    "Yarbo MQTT rejected the restored session. "
+                    "Use the Force Relogin button in Home Assistant."
+                )
 
         # keep — intentional: plan_feedback and cloud_points subscriptions restored;
         # upstream removed them but we need plan_feedback for select.current_option and
@@ -330,38 +407,32 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     err,
                 )
 
-        # Auto wake-up per the configured keep-awake policy. Restore persisted
-        # standby preferences first so a restart doesn't wake devices the user
-        # explicitly put to sleep. In "docked" mode no battery data has arrived
-        # yet, so the initial wake-up is skipped; the renewal timer picks the
-        # device up within one interval once charging status is known.
-        await self._async_restore_standby()
-        for device in self.devices:
-            self._user_standby.setdefault(device.sn, False)
-            if self._should_keep_awake(device.sn):
-                await self._async_send_wakeup(device.sn, device.type_id)
-
-        # Start heartbeat check timer (every 5s)
-        self._unsub_heartbeat_check = async_track_time_interval(
-            self.hass, self._async_check_heartbeats, HEARTBEAT_CHECK_INTERVAL
+    async def _async_login(self, client: YarboClient) -> None:
+        """Log in fresh with the account credentials stored in the config entry."""
+        await self.hass.async_add_executor_job(
+            client.login,
+            self.entry.data[CONF_EMAIL],
+            self.entry.data[CONF_PASSWORD],
         )
 
-        # Start wake-up renewal timer (every 4min)
-        self._unsub_wakeup_renewal = async_track_time_interval(
-            self.hass, self._async_renew_wakeup, WAKEUP_RENEWAL_INTERVAL
-        )
+    async def async_force_relogin(self) -> None:
+        """Force a fresh username/password login and MQTT reconnect.
 
-        # Persist tokens (may have been refreshed during restore)
+        Use when the MQTT broker rejects the restored session (e.g. the
+        stored refresh token itself expired) even though REST calls still
+        succeed — HA never triggers its normal reauth flow in that case
+        because ``restore_session``/``get_devices`` don't fail.
+        """
+        client = self._client
+        if client is None:
+            raise HomeAssistantError("Cannot relogin: integration not set up")
+        try:
+            await self._async_login(client)
+        except (AuthenticationError, YarboSDKError) as err:
+            raise HomeAssistantError(f"Relogin failed: {err}") from err
+        await self.hass.async_add_executor_job(client.mqtt_disconnect)
+        await self._async_connect_mqtt(client)
         self._update_stored_tokens()
-
-        # Fetch initial per-device data in the background so setup returns fast.
-        # Each request can block up to its timeout when a device is offline;
-        # running them inline would stall (and risk cancelling) entry setup.
-        self.entry.async_create_background_task(
-            self.hass,
-            self._async_initial_data_fetch(),
-            name=f"{DOMAIN}_initial_fetch",
-        )
 
     async def _async_initial_data_fetch(self) -> None:
         """Fetch initial snapshots for each device and publish to entities.
@@ -399,6 +470,13 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         parts = topic.split("/")
         if len(parts) >= 2:
             sn = parts[1]
+            if "WheelSpeedMSG" in data:
+                ws = data["WheelSpeedMSG"]
+                if not isinstance(ws, dict):
+                    _LOGGER.warning(
+                        "WheelSpeedMSG payload for %s is %s", sn, type(ws).__name__
+                    )
+
             if self.data is None:
                 self.data = {}
             if sn not in self.data:
@@ -462,6 +540,16 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     self._wifi_inflight,
                     self.async_refresh_wifi_info,
                     "refetch_wifi",
+                )
+            if (
+                came_online or sn not in self._plans_loaded
+            ) and sn not in self._plans_inflight:
+                _LOGGER.info("[heart_beat] sn=%s online → re-fetch plan list", sn)
+                self._schedule_refetch(
+                    sn,
+                    self._plans_inflight,
+                    self.async_refresh_plans,
+                    "refetch_plans",
                 )
 
             if was_online and prev_payload == data:
@@ -642,6 +730,11 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         """Fetch auto plan list for a device. Non-blocking on failure."""
         if self._client is None:
             return
+        # Dedupe concurrent fetches (startup fetch vs. an online-transition
+        # retry, or a mashed Refresh button) — same guard as DeviceMSG/Wi-Fi.
+        if sn in self._plans_inflight:
+            return
+        self._plans_inflight.add(sn)
         try:
             bound = self.bound_device(sn)
             if bound is not None:
@@ -654,7 +747,13 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                 )
             plans = result.get("data", {}).get("data", [])
             self._plan_data[sn] = plans
+            self._plans_loaded.add(sn)
             _LOGGER.info("Plans for %s: %d plans loaded", sn, len(plans))
+            _LOGGER.debug(
+                "Plan id/name map for %s: %s",
+                sn,
+                {p.get("id"): p.get("name") for p in plans},
+            )
         except TimeoutError:
             _LOGGER.warning(
                 "Plan list request timed out for %s. "
@@ -663,6 +762,8 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             )
         except Exception as err:
             _LOGGER.warning("Failed to fetch plans for %s: %s", sn, err)
+        finally:
+            self._plans_inflight.discard(sn)
 
     async def async_refresh_plans(self, sn: str, type_id: str) -> None:
         """Re-fetch plan list and trigger entity update."""

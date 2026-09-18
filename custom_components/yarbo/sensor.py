@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -11,6 +12,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 
+from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -142,21 +144,33 @@ async def async_setup_entry(
         # but they are essential for dashboard monitoring of plan execution.
         entities.append(YarboPlanPathSensor(coordinator, device))
         entities.append(YarboCurrentPlanSensor(coordinator, device))
+        entities.append(YarboCurrentPlanIdSensor(coordinator, device))
         entities.append(YarboCleanAreaSensor(coordinator, device))
         entities.append(YarboBatteryConsumptionSensor(coordinator, device))
         entities.append(YarboPlanProgressSensor(coordinator, device))
         entities.append(YarboRemainingAreaSensor(coordinator, device))
         entities.append(YarboTimeRemainingSensor(coordinator, device))
+        entities.append(YarboTimeRemainingSecondsSensor(coordinator, device))
         entities.append(YarboElapsedTimeSensor(coordinator, device))
+        entities.append(YarboElapsedTimeSecondsSensor(coordinator, device))
         entities.append(YarboTotalPlanAreaSensor(coordinator, device))
         entities.append(YarboTotalPlanTimeSensor(coordinator, device))
+        entities.append(YarboTotalPlanTimeSecondsSensor(coordinator, device))
 
         # keep — intentional: raw telemetry sensors restored from upstream removal (v0.4.8)
         # WheelSpeedMSG, ultrasonic_msg, RunningStatusMSG gyro/chute are not in SDK field defs.
         entities.append(YarboSpeedSensor(coordinator, device))
         entities.append(YarboOdometryLeftSensor(coordinator, device))
+        entities.append(YarboOdometryForwardLeftSensor(coordinator, device))
+        entities.append(YarboOdometryReverseLeftSensor(coordinator, device))
         entities.append(YarboOdometryRightSensor(coordinator, device))
+        entities.append(YarboOdometryForwardRightSensor(coordinator, device))
+        entities.append(YarboOdometryReverseRightSensor(coordinator, device))
         entities.append(YarboOdometryTotalLeftSensor(coordinator, device))
+        entities.append(YarboOdometryTotalForwardLeftSensor(coordinator, device))
+        entities.append(YarboOdometryTotalReverseLeftSensor(coordinator, device))
+        entities.append(YarboOdometryTotalForwardRightSensor(coordinator, device))
+        entities.append(YarboOdometryTotalReverseRightSensor(coordinator, device))
         entities.append(YarboOdometryTotalRightSensor(coordinator, device))
         entities.append(YarboOdomConfidenceSensor(coordinator, device))
         entities.append(YarboChuteSensor(coordinator, device))  # Snow Blower head only
@@ -363,12 +377,7 @@ class _YarboOdometryTotalSensor(
     RestoreEntity,
     SensorEntity,
 ):
-    """Accumulates per-wheel odometry across power cycles and firmware resets.
-
-    Raw odometry resets to 0 each power-on. This sensor adds deltas to a
-    persistent total, skipping any frame where the raw value drops (reset
-    detected) so the accumulated value never decreases.
-    """
+    """Accumulates signed odometry deltas from successive raw samples."""
 
     _attr_has_entity_name = True
     _attr_native_unit_of_measurement = "m"
@@ -376,6 +385,8 @@ class _YarboOdometryTotalSensor(
     _attr_icon = "mdi:counter"
     _unique_id_suffix: str = ""
     _mqtt_key: str = ""
+    _delta_direction: str = "absolute"
+    _max_speed_mps = 0.6
 
     def __init__(self, coordinator: YarboDataUpdateCoordinator, device) -> None:
         super().__init__(coordinator)
@@ -383,6 +394,9 @@ class _YarboOdometryTotalSensor(
         self._attr_unique_id = f"{device.sn}_{self._unique_id_suffix}"
         self._accumulated: float = 0.0
         self._last_raw: float | None = None
+        self._last_sample_time: float | None = None
+        self._last_delta: float | None = None
+        self._last_rejected_delta: float | None = None
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -412,11 +426,42 @@ class _YarboOdometryTotalSensor(
     def _handle_coordinator_update(self) -> None:
         data = (self.coordinator.data or {}).get(self._device.sn) or {}
         val = (data.get("WheelSpeedMSG") or {}).get(self._mqtt_key)
-        if isinstance(val, (int, float)):
-            raw = round(float(val), 1)
-            if self._last_raw is not None and raw >= self._last_raw:
-                self._accumulated = round(self._accumulated + (raw - self._last_raw), 1)
+        if not isinstance(val, (int, float)):
+            return
+
+        now = time.monotonic()
+        raw = round(float(val), 1)
+        if self._last_raw is None:
             self._last_raw = raw
+            self._last_sample_time = now
+            return
+
+        delta = round(raw - self._last_raw, 1)
+        elapsed = (
+            now - self._last_sample_time if self._last_sample_time is not None else None
+        )
+        max_delta = (
+            0.0
+            if elapsed is None or elapsed <= 0
+            else self._max_speed_mps * elapsed + 0.1
+        )
+        if abs(delta) > max_delta:
+            self._last_raw = raw
+            self._last_sample_time = now
+            self._last_rejected_delta = delta
+            return
+
+        if self._delta_direction == "forward":
+            accepted_delta = delta if delta > 0 else 0.0
+        elif self._delta_direction == "reverse":
+            accepted_delta = abs(delta) if delta < 0 else 0.0
+        else:
+            accepted_delta = abs(delta) if delta != 0 else 0.0
+
+        self._accumulated = round(self._accumulated + accepted_delta, 1)
+        self._last_raw = raw
+        self._last_sample_time = now
+        self._last_delta = delta
         self.async_write_ha_state()
 
     @property
@@ -425,7 +470,30 @@ class _YarboOdometryTotalSensor(
 
     @property
     def extra_state_attributes(self) -> dict:
-        return {"last_raw": self._last_raw}
+        return {
+            "last_raw": self._last_raw,
+            "last_delta": self._last_delta,
+            "last_rejected_delta": self._last_rejected_delta,
+            "direction": self._delta_direction,
+        }
+
+
+class YarboOdometryForwardLeftSensor(_YarboOdometryTotalSensor):
+    """Forward-only accumulated left wheel distance."""
+
+    _attr_name = "Odometry Forward Left"
+    _unique_id_suffix = "odometry_forward_left"
+    _mqtt_key = "dist_left"
+    _delta_direction = "forward"
+
+
+class YarboOdometryReverseLeftSensor(_YarboOdometryTotalSensor):
+    """Reverse-only accumulated left wheel distance."""
+
+    _attr_name = "Odometry Reverse Left"
+    _unique_id_suffix = "odometry_reverse_left"
+    _mqtt_key = "dist_left"
+    _delta_direction = "reverse"
 
 
 class YarboOdometryTotalLeftSensor(_YarboOdometryTotalSensor):
@@ -434,6 +502,61 @@ class YarboOdometryTotalLeftSensor(_YarboOdometryTotalSensor):
     _attr_name = "Odometry Total Left"
     _unique_id_suffix = "odometry_total_left"
     _mqtt_key = "dist_left"
+    _delta_direction = "absolute"
+
+
+class YarboOdometryTotalForwardLeftSensor(_YarboOdometryTotalSensor):
+    """Total accumulated forward left wheel distance."""
+
+    _attr_name = "Odometry Total Forward Left"
+    _unique_id_suffix = "odometry_total_forward_left"
+    _mqtt_key = "dist_left"
+    _delta_direction = "forward"
+
+
+class YarboOdometryTotalReverseLeftSensor(_YarboOdometryTotalSensor):
+    """Total accumulated reverse left wheel distance."""
+
+    _attr_name = "Odometry Total Reverse Left"
+    _unique_id_suffix = "odometry_total_reverse_left"
+    _mqtt_key = "dist_left"
+    _delta_direction = "reverse"
+
+
+class YarboOdometryForwardRightSensor(_YarboOdometryTotalSensor):
+    """Forward-only accumulated right wheel distance."""
+
+    _attr_name = "Odometry Forward Right"
+    _unique_id_suffix = "odometry_forward_right"
+    _mqtt_key = "dist_right"
+    _delta_direction = "forward"
+
+
+class YarboOdometryReverseRightSensor(_YarboOdometryTotalSensor):
+    """Reverse-only accumulated right wheel distance."""
+
+    _attr_name = "Odometry Reverse Right"
+    _unique_id_suffix = "odometry_reverse_right"
+    _mqtt_key = "dist_right"
+    _delta_direction = "reverse"
+
+
+class YarboOdometryTotalForwardRightSensor(_YarboOdometryTotalSensor):
+    """Total accumulated forward right wheel distance."""
+
+    _attr_name = "Odometry Total Forward Right"
+    _unique_id_suffix = "odometry_total_forward_right"
+    _mqtt_key = "dist_right"
+    _delta_direction = "forward"
+
+
+class YarboOdometryTotalReverseRightSensor(_YarboOdometryTotalSensor):
+    """Total accumulated reverse right wheel distance."""
+
+    _attr_name = "Odometry Total Reverse Right"
+    _unique_id_suffix = "odometry_total_reverse_right"
+    _mqtt_key = "dist_right"
+    _delta_direction = "reverse"
 
 
 class YarboOdometryTotalRightSensor(_YarboOdometryTotalSensor):
@@ -442,6 +565,7 @@ class YarboOdometryTotalRightSensor(_YarboOdometryTotalSensor):
     _attr_name = "Odometry Total Right"
     _unique_id_suffix = "odometry_total_right"
     _mqtt_key = "dist_right"
+    _delta_direction = "absolute"
 
 
 class YarboOdomConfidenceSensor(_YarboRawSensorBase):
@@ -1736,6 +1860,52 @@ class YarboCurrentPlanSensor(
         return None
 
 
+class YarboCurrentPlanIdSensor(
+    CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity
+):
+    """Numeric id of the currently running plan — for Prometheus export.
+
+    Prometheus drops non-numeric sensor states, so `Current Plan` (name) never
+    reaches it. This mirrors the same areaIds match but exposes the plan's
+    stable numeric id instead, mappable back to a name via Grafana value
+    mappings (name is also kept as an attribute for HA-side use).
+    """
+
+    _attr_has_entity_name = True
+    _attr_name = "Current Plan Id"
+    _attr_icon = "mdi:clipboard-play-outline"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator)
+        self._device = device
+        self._attr_unique_id = f"{device.sn}_current_plan_id"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return _plan_device_info(self._device)
+
+    def _running_plan(self) -> dict | None:
+        pf = self.coordinator.plan_feedback.get(self._device.sn) or {}
+        running_area_ids = set(pf.get("areaIds") or [])
+        if not running_area_ids:
+            return None
+        for plan in self.coordinator.plan_data.get(self._device.sn, []):
+            if set(plan.get("areaIds") or []) == running_area_ids:
+                return plan
+        return None
+
+    @property
+    def native_value(self) -> int | None:
+        plan = self._running_plan()
+        return plan.get("id") if plan is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        plan = self._running_plan()
+        return {"name": plan.get("name")} if plan is not None else {}
+
+
 class YarboCleanAreaSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):
     """Actual cleaned area in the current run — unit follows HA unit system."""
 
@@ -1906,6 +2076,25 @@ class YarboTimeRemainingSensor(_YarboPlanFeedbackBase):
         return {"seconds": round(max(float(val), 0), 0)} if val is not None else {}
 
 
+class YarboTimeRemainingSecondsSensor(_YarboPlanFeedbackBase):
+    """Estimated time remaining in raw seconds — numeric, for Prometheus export."""
+
+    _attr_name = "Estimated Time Remaining Seconds"
+    _attr_icon = "mdi:timer-outline"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_time_remaining_seconds"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("leftTime")
+        return round(max(float(val), 0), 0) if val is not None else None
+
+
 class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
     """Elapsed plan time — displayed as Xh Ym Zs; raw seconds in attribute."""
 
@@ -1925,6 +2114,25 @@ class YarboElapsedTimeSensor(_YarboPlanFeedbackBase):
     def extra_state_attributes(self) -> dict:
         val = self._pf().get("duration")
         return {"seconds": round(float(val), 0)} if val is not None else {}
+
+
+class YarboElapsedTimeSecondsSensor(_YarboPlanFeedbackBase):
+    """Elapsed plan time in raw seconds — numeric, for Prometheus export."""
+
+    _attr_name = "Plan Elapsed Time Seconds"
+    _attr_icon = "mdi:timer"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_elapsed_time_seconds"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("duration")
+        return round(float(val), 0) if val is not None else None
 
 
 class YarboTotalPlanAreaSensor(_YarboPlanFeedbackBase):
@@ -1967,6 +2175,25 @@ class YarboTotalPlanTimeSensor(_YarboPlanFeedbackBase):
     def extra_state_attributes(self) -> dict:
         val = self._pf().get("totalTime")
         return {"seconds": round(float(val), 0)} if val is not None else {}
+
+
+class YarboTotalPlanTimeSecondsSensor(_YarboPlanFeedbackBase):
+    """Total estimated plan time in raw seconds — numeric, for Prometheus export."""
+
+    _attr_name = "Total Plan Time Seconds"
+    _attr_icon = "mdi:timer-outline"
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator, device) -> None:
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{device.sn}_total_plan_time_seconds"
+
+    @property
+    def native_value(self) -> float | None:
+        val = self._pf().get("totalTime")
+        return round(float(val), 0) if val is not None else None
 
 
 class YarboPlanPathSensor(CoordinatorEntity[YarboDataUpdateCoordinator], SensorEntity):

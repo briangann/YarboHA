@@ -1,4 +1,11 @@
 {
+  "issues": {
+    "mqtt_not_authorized": {
+      "title": "Yarbo MQTT authentication failed",
+      "description": "Home Assistant could not reconnect to Yarbo's MQTT broker because the restored session was rejected. Use the Force Relogin button in the integration, then reload the integration if needed."
+    }
+  },
+
   "config": {
     "step": {
       "user": {
