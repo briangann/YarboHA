@@ -15,7 +15,13 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
+from homeassistant.components.persistent_notification import (
+    async_create as async_create_notification,
+    async_dismiss as async_dismiss_notification,
+)
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
 from yarbo_robot_sdk import (
     AuthenticationError,
     TokenExpiredError,
@@ -23,7 +29,6 @@ from yarbo_robot_sdk import (
     YarboSDKError,
 )
 from yarbo_robot_sdk.device_helpers import convert_map_to_geojson
-
 from .const import (
     CONF_KEEP_AWAKE_MODE,
     CONF_SELECTED_DEVICES,
@@ -34,6 +39,10 @@ from .const import (
     KEEP_AWAKE_DOCKED,
     KEEP_AWAKE_OFF,
 )
+
+MQTT_AUTH_ISSUE_ID = "mqtt_not_authorized"
+MQTT_AUTH_NOTIFICATION_ID = "yarbo_mqtt_not_authorized"
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -141,6 +150,33 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
             MAP_STORE_SAVE_DELAY,
         )
 
+    def _async_clear_mqtt_auth_issue(self) -> None:
+        """Clear the MQTT auth repair issue and notification."""
+        ir.async_delete_issue(self.hass, DOMAIN, MQTT_AUTH_ISSUE_ID)
+        async_dismiss_notification(self.hass, MQTT_AUTH_NOTIFICATION_ID)
+
+    def _async_report_mqtt_auth_issue(self, err: Exception) -> None:
+        """Create a UI-visible issue when MQTT rejects the restored session."""
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            MQTT_AUTH_ISSUE_ID,
+            is_fixable=False,
+            is_persistent=True,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="mqtt_not_authorized",
+            translation_placeholders={"error": str(err)},
+        )
+        async_create_notification(
+            self.hass,
+            (
+                "Yarbo MQTT authentication failed. Open Repairs to fix it, "
+                "or use the Force Relogin button in the integration."
+            ),
+            title="Yarbo authentication problem",
+            notification_id=MQTT_AUTH_NOTIFICATION_ID,
+        )
+
     async def _async_restore_maps(self) -> None:
         """Load persisted map + GPS reference cache into memory (best effort)."""
         try:
@@ -236,6 +272,7 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
         """Connect MQTT and subscribe to selected devices."""
         try:
             await self.hass.async_add_executor_job(client.mqtt_connect)
+            self._async_clear_mqtt_auth_issue()
             for device in self.devices:
                 _LOGGER.info(
                     "Subscribing MQTT for %s (type_id=%s)",
@@ -261,6 +298,12 @@ class YarboDataUpdateCoordinator(DataUpdateCoordinator[dict[str, dict]]):
                     )
         except YarboSDKError as err:
             _LOGGER.warning("MQTT connection failed: %s", err)
+            if "not authorized" in str(err).lower():
+                self._async_report_mqtt_auth_issue(err)
+                _LOGGER.warning(
+                    "Yarbo MQTT rejected the restored session. "
+                    "Use the Force Relogin button in Home Assistant."
+                )
 
         # keep — intentional: plan_feedback and cloud_points subscriptions restored;
         # upstream removed them but we need plan_feedback for select.current_option and
